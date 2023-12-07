@@ -90,13 +90,13 @@ namespace Demos.SpecializedTests
             treeA.Validate();
             treeB.Validate();
 
-            var context = new Tree.MultithreadedIntertreeTest<OverlapHandler>(pool);
+            var context = new Tree.MultithreadedIntertreeTest<OverlapHandler>();
             var handlers = new OverlapHandler[threadDispatcher.ThreadCount];
             for (int i = 0; i < threadDispatcher.ThreadCount; ++i)
             {
                 handlers[i].Pairs = new List<(int a, int b)>();
             }
-            context.PrepareJobs(ref treeA, ref treeB, handlers, threadDispatcher.ThreadCount);
+            context.PrepareJobs(ref treeA, ref treeB, handlers, threadDispatcher.ThreadCount, 0, pool);
             threadDispatcher.DispatchWorkers(context.PairTest, context.JobCount);
             context.CompleteTest();
             List<(int a, int b)> multithreadedResults = new List<(int, int)>();

@@ -65,7 +65,7 @@ namespace Demos.SpecializedTests
 
             var threadDispatcher = new ThreadDispatcher(Environment.ProcessorCount);
             var refineContext = new Tree.RefitAndRefineMultithreadedContext();
-            var selfTestContext = new Tree.MultithreadedSelfTest<OverlapHandler>(pool);
+            var selfTestContext = new Tree.MultithreadedSelfTest<OverlapHandler>();
             var overlapHandlers = new OverlapHandler[threadDispatcher.ThreadCount];
             Action<int> pairTestAction = selfTestContext.PairTest;
             var removedLeafHandles = new QuickList<int>(leafCount, pool);
@@ -129,7 +129,7 @@ namespace Demos.SpecializedTests
                 {
                     overlapHandlers[k] = new OverlapHandler();
                 }
-                selfTestContext.PrepareJobs(ref tree, overlapHandlers, threadDispatcher.ThreadCount);
+                selfTestContext.PrepareJobs(ref tree, overlapHandlers, threadDispatcher.ThreadCount, 0, pool);
                 threadDispatcher.DispatchWorkers(pairTestAction);
                 selfTestContext.CompleteSelfTest();
                 tree.Validate();
