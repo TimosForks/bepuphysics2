@@ -138,6 +138,13 @@ namespace BepuUtilities.Collections
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void AddUnsafely(int index)
         {
+            // Timo Weggen: Throw an exception instead of asserting to enable dumping physics state.
+            if ((Flags[index >> shift] & (1ul << (index & mask))) != 0)
+            {
+                var e = new InvalidOperationException("Cannot add if it's already present!");
+                e.Data["Handle"] = index;
+                throw e;
+            }
             Debug.Assert((Flags[index >> shift] & (1ul << (index & mask))) == 0, "Cannot add if it's already present!");
             SetUnsafely(index, index >> shift);
         }
