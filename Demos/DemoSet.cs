@@ -71,6 +71,7 @@ namespace Demos
             AddOption<SolverContactEnumerationDemo>();
             AddOption<CustomVoxelCollidableDemo>();
             AddOption<BlockChainDemo>();
+            AddOption<ReplayJoyceDemo>();
             AddOption<SponsorDemo>();
         }
 
