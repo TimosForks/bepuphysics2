@@ -24,7 +24,7 @@ public class ReplayJoyceDemo : Demo
         camera.Pitch = 0;
         Simulation = Simulation.Create(BufferPool, new DemoNarrowPhaseCallbacks(new SpringSettings(30, 1)), new DemoPoseIntegratorCallbacks(new Vector3(0, -10, 0)), new SolveDescription(8, 1));
 
-        _player.LoadFromFile("..\\..\\..\\..\\Demos\\Content\\joyce-physics-dump-20240228172940.json");
+        _player.LoadFromFile("..\\..\\..\\..\\Demos\\Content\\joyce-physics-dump-20240229181351.json");
     }
 
 

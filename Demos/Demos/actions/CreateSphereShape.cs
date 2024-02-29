@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using BepuPhysics;
 using BepuPhysics.Collidables;
 
@@ -26,8 +27,11 @@ public class CreateSphereShape : ABase
     }
 
 
-    public override int Execute(Log? plog, Simulation simulation)
+    public override int Execute(Player player, Simulation simulation)
     {
-        return Execute(plog, simulation, Radius, out var _);
+        uint loggedTypeIndex = ResultPackedTypeIndex;
+        uint currentTypeIndex = (uint) Execute(null, simulation, Radius, out var _);
+        player.MapperShapes.Add(loggedTypeIndex, currentTypeIndex);
+        return (int) currentTypeIndex;
     }
 }
