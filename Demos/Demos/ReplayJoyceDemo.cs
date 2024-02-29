@@ -14,7 +14,7 @@ namespace Demos.Demos;
 
 public class ReplayJoyceDemo : Demo
 {
-    private engine.physics.actions.Player _player;
+    private engine.physics.actions.Player _player = new();
     
     
     public unsafe override void Initialize(ContentArchive content, Camera camera)
@@ -22,13 +22,15 @@ public class ReplayJoyceDemo : Demo
         camera.Position = new Vector3(-30, 8, -110);
         camera.Yaw = MathHelper.Pi * 3f / 4;
         camera.Pitch = 0;
+        Simulation = Simulation.Create(BufferPool, new DemoNarrowPhaseCallbacks(new SpringSettings(30, 1)), new DemoPoseIntegratorCallbacks(new Vector3(0, -10, 0)), new SolveDescription(8, 1));
+
         _player.LoadFromFile("..\\..\\..\\..\\Demos\\Content\\joyce-physics-dump-20240228172940.json");
     }
 
 
     public override void Update(Window window, Camera camera, Input input, float dt)
     {
-        _player.PerformNextChunk();
+        _player.PerformNextChunk(Simulation);
         base.Update(window, camera, input, dt);
     }
 
