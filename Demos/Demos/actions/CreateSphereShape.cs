@@ -8,9 +8,9 @@ public class CreateSphereShape : ABase
     public uint ResultPackedTypeIndex;
     public float Radius;
     
-    static public int Execute(Log? plog, Simulation simulation, float radius)
+    static public int Execute(Log? plog, Simulation simulation, float radius, out BepuPhysics.Collidables.Sphere body)
     {
-        var body = new BepuPhysics.Collidables.Sphere(radius);
+        body = new BepuPhysics.Collidables.Sphere(radius);
         var shape = simulation.Shapes.Add(body);
 
         if (plog != null)
@@ -28,6 +28,6 @@ public class CreateSphereShape : ABase
 
     public override int Execute(Log? plog, Simulation simulation)
     {
-        return Execute(plog, simulation, Radius);
+        return Execute(plog, simulation, Radius, out var _);
     }
 }

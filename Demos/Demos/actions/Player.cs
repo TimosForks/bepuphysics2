@@ -46,9 +46,14 @@ public class Player
         {
             bool haveTimestep = false;
             bool foundTimestep = false;
-            for (; _nextAction < _nActions; _nextAction++)
+            while (true)
             {
+                if (_nextAction == _nActions)
+                {
+                    break;
+                }
                 var je = _jd.RootElement.GetProperty("actions")[_nextAction];
+                ++_nextAction;
                 string strType = je.GetProperty("type").ToString();
 
                 if (strType == typeof(Timestep).ToString())
