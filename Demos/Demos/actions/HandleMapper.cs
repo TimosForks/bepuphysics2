@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace engine.physics.actions;
 
-public class HandleMapper<T>
+public class HandleMapper<T> 
 {
     private object _lo = new();
 
@@ -11,6 +11,10 @@ public class HandleMapper<T>
 
     public void Add(T stored, T current)
     {
+        if (!EqualityComparer<T>.Default.Equals(stored , current))
+        {
+            int a = 0;
+        }
         lock (_lo)
         {
             _mapOldNew.Add(stored, current);
