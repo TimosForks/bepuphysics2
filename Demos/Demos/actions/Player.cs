@@ -73,6 +73,7 @@ public class Player
                 catch (Exception e)
                 {
                     // just skip incomplete handles.
+                    int a = 1;
                 }
             }
             if (_nextAction >= _nActions)
