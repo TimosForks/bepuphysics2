@@ -13,20 +13,12 @@ namespace Demos.Demos;
 
 public class ReplayJoyceDemo : Demo
 {
-    private JsonDocument _jd;
-    private int _nextAction = -1;
-    private int _nActions = 0;
     
     public unsafe override void Initialize(ContentArchive content, Camera camera)
     {
         camera.Position = new Vector3(-30, 8, -110);
         camera.Yaw = MathHelper.Pi * 3f / 4;
         camera.Pitch = 0;
-        Simulation = Simulation.Create(BufferPool, new DemoNarrowPhaseCallbacks(new SpringSettings(30, 1)), new DemoPoseIntegratorCallbacks(new Vector3(0, -10, 0)), new SolveDescription(8, 1));
-        string strJsonDump = File.ReadAllText("..\\..\\..\\..\\Demos\\Content\\joyce-physics-dump-20240228172940.json");
-        _jd = JsonDocument.Parse(strJsonDump);
-        _nextAction = 0;
-        _nActions = _jd.RootElement.GetProperty("actions").GetArrayLength();
     }
 
 
