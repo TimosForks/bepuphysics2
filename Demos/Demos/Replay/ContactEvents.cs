@@ -58,7 +58,7 @@ namespace Demos.Demos.Replay
 
         BufferPool GetPoolForWorker(int workerIndex)
         {
-#if true // Bepu 2.4
+#if false // Bepu 2.4
             return threadDispatcher == null ? pool : threadDispatcher.GetThreadMemoryPool(workerIndex);
 #else // Bepu 2.5
             return threadDispatcher == null ? pool : threadDispatcher.WorkerPools[workerIndex];
