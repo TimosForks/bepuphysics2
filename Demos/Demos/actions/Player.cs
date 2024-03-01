@@ -113,11 +113,6 @@ public class Player
                     }
                 }
             }
-            if (_nextAction >= _nActions)
-            {
-                // Simulation is done.
-                int a = 1;
-            }
         }
     }
     
