@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Numerics;
 using System.Text.Json;
 using BepuPhysics;
 
@@ -17,7 +18,20 @@ public class Player
     
     public readonly HandleMapper<int> MapperBodies = new();
     public readonly HandleMapper<uint> MapperShapes = new();
-    
+
+    private Vector3 _v3DynamicPos = Vector3.Zero;
+
+    public Vector3 CameraPosition
+    {
+        get
+        {
+            lock (_lo)
+            {
+                return _v3DynamicPos;
+            }
+        }
+    }
+
     public JsonSerializerOptions JsonSerializerOptions = new()
     {
         IncludeFields = true,
@@ -74,6 +88,29 @@ public class Player
                 {
                     // just skip incomplete handles.
                     int a = 1;
+                }
+
+                if (strType == "engine.physics.actions.DynamicSnapshot")
+                {
+                    var ds = physAction as actions.DynamicSnapshot;
+                    /*
+                     * Note that the off (sleeping) position is negative, all meaningful
+                     * action is on Y > 0 
+                     */
+                    if (ds.MotionState.Pose.Position.Y > 0f)
+                    {
+                        if (_v3DynamicPos.X == 0)
+                        {
+                            _v3DynamicPos = ds.MotionState.Pose.Position;
+                        }
+                        else
+                        {
+                            if (_v3DynamicPos.X < ds.MotionState.Pose.Position.X)
+                            {
+                                _v3DynamicPos = ds.MotionState.Pose.Position;
+                            }
+                        }
+                    }
                 }
             }
             if (_nextAction >= _nActions)

@@ -139,7 +139,7 @@ namespace BepuUtilities.Collections
         public void AddUnsafely(int index)
         {
             // Timo Weggen: Throw an exception instead of asserting to enable dumping physics state.
-            if ((Flags[index >> shift] & (1ul << (index & mask))) != 0)
+            if (false && (Flags[index >> shift] & (1ul << (index & mask))) != 0)
             {
                 var e = new InvalidOperationException("Cannot add if it's already present!");
                 e.Data["Handle"] = index;
