@@ -62,7 +62,7 @@ namespace Demos.Demos.Replay
 
             //This function also exposes the speculative margin. It can be validly written to, but that is a very rare use case.
             //Most of the time, you can ignore this function's speculativeMargin parameter entirely.
-            return a.Mobility == CollidableMobility.Dynamic || b.Mobility == CollidableMobility.Dynamic;
+            return true; //a.Mobility == CollidableMobility.Dynamic || b.Mobility == CollidableMobility.Dynamic;
         }
 
         /// <summary>
