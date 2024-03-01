@@ -1,9 +1,7 @@
 ﻿using BepuPhysics;
 using BepuUtilities;
 using System;
-using System.Collections.Generic;
 using System.Numerics;
-using System.Text;
 
 namespace Demos.SpecializedTests
 {
@@ -17,7 +15,7 @@ namespace Demos.SpecializedTests
             float accumulated = 0;
             for (int index = 0; index < bodies.ActiveSet.Count; ++index)
             {
-                ref var velocity = ref bodies.ActiveSet.SolverStates[index].Motion.Velocity;
+                ref var velocity = ref bodies.ActiveSet.DynamicsState[index].Motion.Velocity;
                 accumulated += Vector3.Dot(velocity.Linear, velocity.Linear);
                 accumulated += Vector3.Dot(velocity.Angular, velocity.Angular);
             }

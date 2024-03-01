@@ -1,16 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace BepuPhysics.Trees
 {
     partial struct Tree
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe static bool Intersects(in Vector3 min, in Vector3 max, TreeRay* ray, out float t)
+        //Working around https://github.com/dotnet/runtime/issues/95043:
+        //Under x86 with optimizations, forcing inlining seems to cause problems for sweeps. *Not* forcing it also harms performance.
+        //Under x64, though, there's not really any cost to letting the JIT decide. TODO: Probably should look into ARM eventually.
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public unsafe static bool Intersects(Vector3 min, Vector3 max, TreeRay* ray, out float t)
         {
             var t0 = min * ray->InverseDirection - ray->OriginOverDirection;
             var t1 = max * ray->InverseDirection - ray->OriginOverDirection;
@@ -26,8 +26,8 @@ namespace BepuPhysics.Trees
 
         internal readonly unsafe void RayCast<TLeafTester>(int nodeIndex, TreeRay* treeRay, RayData* rayData, int* stack, ref TLeafTester leafTester) where TLeafTester : IRayLeafTester
         {
-            Debug.Assert((nodeIndex >= 0 && nodeIndex < nodeCount) || (Encode(nodeIndex) >= 0 && Encode(nodeIndex) < leafCount));
-            Debug.Assert(leafCount >= 2, "This implementation assumes all nodes are filled.");
+            Debug.Assert((nodeIndex >= 0 && nodeIndex < NodeCount) || (Encode(nodeIndex) >= 0 && Encode(nodeIndex) < LeafCount));
+            Debug.Assert(LeafCount >= 2, "This implementation assumes all nodes are filled.");
 
             int stackEnd = 0;
             while (true)
@@ -91,10 +91,10 @@ namespace BepuPhysics.Trees
 
         internal readonly unsafe void RayCast<TLeafTester>(TreeRay* treeRay, RayData* rayData, ref TLeafTester leafTester) where TLeafTester : IRayLeafTester
         {
-            if (leafCount == 0)
+            if (LeafCount == 0)
                 return;
 
-            if (leafCount == 1)
+            if (LeafCount == 1)
             {
                 //If the first node isn't filled, we have to use a special case.
                 if (Intersects(Nodes[0].A.Min, Nodes[0].A.Max, treeRay, out var tA))
@@ -111,7 +111,7 @@ namespace BepuPhysics.Trees
             }
         }
 
-        public readonly unsafe void RayCast<TLeafTester>(in Vector3 origin, in Vector3 direction, ref float maximumT, ref TLeafTester leafTester, int id = 0) where TLeafTester : IRayLeafTester
+        public readonly unsafe void RayCast<TLeafTester>(Vector3 origin, Vector3 direction, ref float maximumT, ref TLeafTester leafTester, int id = 0) where TLeafTester : IRayLeafTester
         {
             TreeRay.CreateFrom(origin, direction, maximumT, id, out var rayData, out var treeRay);
             RayCast(&treeRay, &rayData, ref leafTester);

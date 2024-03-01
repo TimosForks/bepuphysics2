@@ -13,7 +13,7 @@ namespace Demos.SpecializedTests.Media
     public class NewtDemandingSacrificeVideoDemo : Demo
     {
         CollidableProperty<SubgroupCollisionFilter> filters;
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(-32f, 20.5f, 61f);
             camera.Yaw = MathHelper.Pi * 0.3f;
@@ -31,14 +31,14 @@ namespace Demos.SpecializedTests.Media
             //High fidelity simulation isn't super important on this one.
             Simulation.Solver.VelocityIterationCount = 2;
 
-            DemoMeshHelper.LoadModel(content, BufferPool, "Content\\newt.obj", new Vector3(30), out var mesh);
+            var mesh = DemoMeshHelper.LoadModel(content, BufferPool, "Content\\newt.obj", new Vector3(30));
             Simulation.Statics.Add(new StaticDescription(new Vector3(0, 20, 0), QuaternionEx.CreateFromAxisAngle(Vector3.UnitY, 0), Simulation.Shapes.Add(mesh)));
         }
 
         Random random = new Random(5);
         int ragdollIndex = 0;
 
-        BodyVelocity GetRandomizedVelocity(in Vector3 linearVelocity)
+        BodyVelocity GetRandomizedVelocity(Vector3 linearVelocity)
         {
             return new BodyVelocity { Linear = linearVelocity, Angular = new Vector3(-20) + 40 * new Vector3(random.NextSingle(), random.NextSingle(), random.NextSingle()) };
         }

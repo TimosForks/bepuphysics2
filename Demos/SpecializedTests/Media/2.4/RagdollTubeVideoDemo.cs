@@ -18,7 +18,7 @@ namespace Demos.SpecializedTests.Media
     /// </summary>
     public class RagdollTubeVideoDemo : Demo
     {
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(0, 9, -40);
             camera.Yaw = MathHelper.Pi;
@@ -75,7 +75,7 @@ namespace Demos.SpecializedTests.Media
             var staticDescription = new StaticDescription(new Vector3(0, -0.5f, 0), staticShapeIndex);
             Simulation.Statics.Add(staticDescription);
 
-            DemoMeshHelper.LoadModel(content, BufferPool, @"Content\newt.obj", new Vector3(15, 15, 15), out var newtMesh);
+            var newtMesh = DemoMeshHelper.LoadModel(content, BufferPool, @"Content\newt.obj", new Vector3(15, 15, 15));
             Simulation.Statics.Add(new StaticDescription(new Vector3(0, 0.5f, 80), Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI), Simulation.Shapes.Add(newtMesh)));
 
         }

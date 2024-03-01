@@ -5,7 +5,6 @@ using BepuPhysics;
 using BepuPhysics.Collidables;
 using System;
 using System.Numerics;
-using System.Diagnostics;
 using DemoContentLoader;
 using DemoRenderer.UI;
 using DemoRenderer.Constraints;
@@ -15,7 +14,7 @@ namespace Demos.Demos
 {
     public class CompoundBoundTests : Demo
     {
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(-10, 0, -10);
             camera.Yaw = MathHelper.Pi * 3f / 4;
@@ -24,7 +23,7 @@ namespace Demos.Demos
 
         }
 
-        void GetArcExpansion(in Vector3 offset, in Vector3 angularVelocity, float dt, out Vector3 minExpansion, out Vector3 maxExpansion)
+        void GetArcExpansion(Vector3 offset, Vector3 angularVelocity, float dt, out Vector3 minExpansion, out Vector3 maxExpansion)
         {
             //minExpansion = default;
             //maxExpansion = default;
@@ -128,7 +127,7 @@ namespace Demos.Demos
             maxExpansion = maxExpansion - max;
         }
 
-        void GetEstimatedExpansion(in Vector3 localPoseA, in Vector3 angularVelocityA, in Vector3 offsetB, in Vector3 angularVelocityB, float dt, out Vector3 minExpansion, out Vector3 maxExpansion)
+        void GetEstimatedExpansion(Vector3 localPoseA, Vector3 angularVelocityA, Vector3 offsetB, Vector3 angularVelocityB, float dt, out Vector3 minExpansion, out Vector3 maxExpansion)
         {
             GetArcExpansion(localPoseA, angularVelocityA, dt, out var minExpansionA, out var maxExpansionA);
             GetArcExpansion(-offsetB, -angularVelocityB, dt, out var minExpansionB, out var maxExpansionB);
@@ -141,7 +140,7 @@ namespace Demos.Demos
             return new Vector3(random.NextSingle(), random.NextSingle(), random.NextSingle()) * width - new Vector3(width * 0.5f);
         }
         Random random = new Random(5);
-        public unsafe override void Render(Renderer renderer, Camera camera, Input input, TextBuilder text, Font font)
+        public override void Render(Renderer renderer, Camera camera, Input input, TextBuilder text, Font font)
         {
             Vector3 basePosition = new Vector3();
             for (int testIndex = 0; testIndex < 16; ++testIndex)

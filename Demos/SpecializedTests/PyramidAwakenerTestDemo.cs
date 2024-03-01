@@ -4,12 +4,9 @@ using BepuPhysics.Constraints;
 using BepuUtilities;
 using DemoContentLoader;
 using DemoRenderer;
-using DemoRenderer.UI;
 using DemoUtilities;
 using System;
-using System.Collections.Generic;
 using System.Numerics;
-using System.Text;
 
 namespace Demos.Demos
 {
@@ -18,7 +15,7 @@ namespace Demos.Demos
     /// </summary>
     public class PyramidAwakenerTestDemo : Demo
     {
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(-30, 8, -110);
             camera.Yaw = MathHelper.Pi * 3f / 4;
@@ -69,7 +66,7 @@ namespace Demos.Demos
                 Simulation.Dispose();
                 BufferPool.Clear();
                 for (int i = 0; i < ThreadDispatcher.ThreadCount; ++i)
-                    ThreadDispatcher.GetThreadMemoryPool(i).Clear();
+                    ThreadDispatcher.WorkerPools[i].Clear();
                 Initialize(null, camera);
             }
             base.Update(window, camera, input, dt);

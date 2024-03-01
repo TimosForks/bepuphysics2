@@ -1,6 +1,5 @@
 ﻿using BepuPhysics;
 using BepuPhysics.Collidables;
-using BepuPhysics.CollisionDetection;
 using BepuPhysics.Constraints;
 using BepuUtilities;
 using DemoContentLoader;
@@ -8,9 +7,7 @@ using DemoRenderer;
 using DemoRenderer.UI;
 using DemoUtilities;
 using System;
-using System.Collections.Generic;
 using System.Numerics;
-using System.Text;
 
 namespace Demos.Demos
 {
@@ -19,7 +16,7 @@ namespace Demos.Demos
     /// </summary>
     public class RopeStabilityDemo : Demo
     {
-        public static BodyHandle[] BuildRopeBodies(Simulation simulation, in Vector3 start, int bodyCount, float bodySize, float bodySpacing, float massPerBody, float inverseInertiaScale)
+        public static BodyHandle[] BuildRopeBodies(Simulation simulation, Vector3 start, int bodyCount, float bodySize, float bodySpacing, float massPerBody, float inverseInertiaScale)
         {
             BodyHandle[] handles = new BodyHandle[bodyCount + 1];
             var ropeShape = new Sphere(bodySize);
@@ -42,7 +39,7 @@ namespace Demos.Demos
 
             return handles;
         }
-        public static BodyHandle[] BuildRope(Simulation simulation, in Vector3 start, int bodyCount, float bodySize, float bodySpacing, float constraintOffsetLength, float massPerBody, float inverseInertiaScale, SpringSettings springSettings)
+        public static BodyHandle[] BuildRope(Simulation simulation, Vector3 start, int bodyCount, float bodySize, float bodySpacing, float constraintOffsetLength, float massPerBody, float inverseInertiaScale, SpringSettings springSettings)
         {
             var handles = BuildRopeBodies(simulation, start, bodyCount, bodySize, bodySpacing, massPerBody, inverseInertiaScale);
             var maximumDistance = 2 * bodySize + bodySpacing - 2 * constraintOffsetLength;
@@ -77,7 +74,7 @@ namespace Demos.Demos
         RolloverInfo rolloverInfo;
 
 
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(0, 25, 80);
             camera.Yaw = 0;

@@ -6,11 +6,8 @@ using Demos.Demos.Characters;
 using Demos.Demos.Dancers;
 using Demos.Demos.Sponsors;
 using Demos.Demos.Tanks;
-using Demos.SpecializedTests;
-using Demos.SpecializedTests.Media;
 using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace Demos
 {
@@ -58,15 +55,18 @@ namespace Demos
             AddOption<PlumpDancerDemo>();
             AddOption<ContinuousCollisionDetectionDemo>();
             AddOption<PlanetDemo>();
+            AddOption<PerBodyGravityDemo>();
             AddOption<CompoundDemo>();
             AddOption<RopeStabilityDemo>();
             AddOption<SubsteppingDemo>();
             AddOption<ChainFountainDemo>();
             AddOption<RopeTwistDemo>();
+            AddOption<FrictionDemo>();
             AddOption<BouncinessDemo>();
             AddOption<RayCastingDemo>();
             AddOption<SweepDemo>();
             AddOption<ContactEventsDemo>();
+            AddOption<CollisionTrackingDemo>();
             AddOption<CollisionQueryDemo>();
             AddOption<SolverContactEnumerationDemo>();
             AddOption<CustomVoxelCollidableDemo>();

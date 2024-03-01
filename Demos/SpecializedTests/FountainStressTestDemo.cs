@@ -18,7 +18,7 @@ namespace Demos.SpecializedTests
         QuickQueue<StaticDescription> removedStatics;
         QuickQueue<BodyHandle> dynamicHandles;
         Random random;
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(-15f, 20, -15f);
             camera.Yaw = MathHelper.Pi * 3f / 4;
@@ -41,12 +41,12 @@ namespace Demos.SpecializedTests
 
             const int planeWidth = 8;
             const int planeHeight = 8;
-            DemoMeshHelper.CreateDeformedPlane(planeWidth, planeHeight,
+            var staticShape = DemoMeshHelper.CreateDeformedPlane(planeWidth, planeHeight,
                 (int x, int y) =>
                 {
                     Vector2 offsetFromCenter = new Vector2(x - planeWidth / 2, y - planeHeight / 2);
                     return new Vector3(offsetFromCenter.X, MathF.Cos(x / 4f) * MathF.Sin(y / 4f) - 0.2f * offsetFromCenter.LengthSquared(), offsetFromCenter.Y);
-                }, new Vector3(2, 1, 2), BufferPool, out var staticShape);
+                }, new Vector3(2, 1, 2), BufferPool);
             var staticShapeIndex = Simulation.Shapes.Add(staticShape);
             const int staticGridWidthInInstances = 128;
             const float staticSpacing = 8;
@@ -297,7 +297,7 @@ namespace Demos.SpecializedTests
                     16 + 16 * (float)Math.Cos(4 * (angle + t * 0.5)),
                     radius * (float)Math.Sin(positionAngle));
 
-                var correction = targetLocation - set.SolverStates[bodyLocation.Index].Motion.Pose.Position;
+                var correction = targetLocation - set.DynamicsState[bodyLocation.Index].Motion.Pose.Position;
                 var distance = correction.Length();
                 if (distance > 1e-4)
                 {
@@ -311,13 +311,13 @@ namespace Demos.SpecializedTests
                         correction *= maxDisplacement / distance;
                     }
                     Debug.Assert(bodyLocation.SetIndex == 0);
-                    Simulation.Bodies.ActiveSet.SolverStates[bodyLocation.Index].Motion.Velocity.Linear = correction * inverseDt;
+                    Simulation.Bodies.ActiveSet.DynamicsState[bodyLocation.Index].Motion.Velocity.Linear = correction * inverseDt;
                 }
                 else
                 {
                     if (bodyLocation.SetIndex == 0)
                     {
-                        Simulation.Bodies.ActiveSet.SolverStates[bodyLocation.Index].Motion.Velocity.Linear = new Vector3();
+                        Simulation.Bodies.ActiveSet.DynamicsState[bodyLocation.Index].Motion.Velocity.Linear = new Vector3();
                     }
                 }
             }

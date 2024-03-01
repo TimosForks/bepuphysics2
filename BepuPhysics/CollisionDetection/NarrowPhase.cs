@@ -1,11 +1,8 @@
 ﻿using BepuUtilities.Collections;
 using BepuUtilities.Memory;
 using BepuPhysics.Collidables;
-using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System;
-using BepuPhysics.Constraints;
 using System.Diagnostics;
 using System.Threading;
 using BepuUtilities;
@@ -81,7 +78,7 @@ namespace BepuPhysics.CollisionDetection
         public int Index;
     }
 
-    public abstract class NarrowPhase
+    public unsafe abstract class NarrowPhase
     {
         public Simulation Simulation;
         public BufferPool Pool;
@@ -330,7 +327,7 @@ namespace BepuPhysics.CollisionDetection
     /// Turns broad phase overlaps into contact manifolds and uses them to manage constraints in the solver.
     /// </summary>
     /// <typeparam name="TCallbacks">Type of the callbacks to use.</typeparam>
-    public partial class NarrowPhase<TCallbacks> : NarrowPhase where TCallbacks : struct, INarrowPhaseCallbacks
+    public unsafe partial class NarrowPhase<TCallbacks> : NarrowPhase where TCallbacks : struct, INarrowPhaseCallbacks
     {
         public TCallbacks Callbacks;
         public struct OverlapWorker
@@ -351,7 +348,7 @@ namespace BepuPhysics.CollisionDetection
         internal OverlapWorker[] overlapWorkers;
 
         public NarrowPhase(Simulation simulation, CollisionTaskRegistry collisionTaskRegistry, SweepTaskRegistry sweepTaskRegistry, TCallbacks callbacks,
-             int initialSetCapacity, int minimumMappingSize = 2048, int minimumPendingSize = 128, int minimumPerTypeCapacity = 128)
+             int initialSetCapacity, int minimumMappingSize = 2048, int minimumPendingSize = 128)
             : base()
         {
             Simulation = simulation;
@@ -364,7 +361,7 @@ namespace BepuPhysics.CollisionDetection
             Callbacks = callbacks;
             CollisionTaskRegistry = collisionTaskRegistry;
             SweepTaskRegistry = sweepTaskRegistry;
-            PairCache = new PairCache(simulation.BufferPool, initialSetCapacity, minimumMappingSize, minimumPendingSize, minimumPerTypeCapacity);
+            PairCache = new PairCache(simulation.BufferPool, initialSetCapacity, minimumMappingSize, minimumPendingSize);
             FreshnessChecker = new FreshnessChecker(this);
             preflushWorkerLoop = PreflushWorkerLoop;
         }
@@ -378,7 +375,7 @@ namespace BepuPhysics.CollisionDetection
                 Array.Resize(ref overlapWorkers, threadCount);
             for (int i = 0; i < threadCount; ++i)
             {
-                overlapWorkers[i] = new OverlapWorker(i, threadDispatcher != null ? threadDispatcher.GetThreadMemoryPool(i) : Pool, this);
+                overlapWorkers[i] = new OverlapWorker(i, threadDispatcher != null ? threadDispatcher.WorkerPools[i] : Pool, this);
             }
         }
 
@@ -399,7 +396,7 @@ namespace BepuPhysics.CollisionDetection
             Callbacks.Dispose();
         }
 
-        public unsafe void HandleOverlap(int workerIndex, CollidableReference a, CollidableReference b)
+        public void HandleOverlap(int workerIndex, CollidableReference a, CollidableReference b)
         {
             Debug.Assert(a.Packed != b.Packed, "Excuse me, broad phase, but an object cannot collide with itself!");
             SortCollidableReferencesForPair(a, b, out var aMobility, out var bMobility, out a, out b);
@@ -409,7 +406,7 @@ namespace BepuPhysics.CollisionDetection
             var twoBodies = bMobility != CollidableMobility.Static;
             ref var bodyLocationA = ref Bodies.HandleToLocation[a.BodyHandle.Value];
             ref var setA = ref Bodies.Sets[bodyLocationA.SetIndex];
-            ref var stateA = ref setA.SolverStates[bodyLocationA.Index];
+            ref var stateA = ref setA.DynamicsState[bodyLocationA.Index];
             ref var collidableA = ref setA.Collidables[bodyLocationA.Index];
             float speculativeMarginB;
             if (twoBodies)
@@ -444,7 +441,7 @@ namespace BepuPhysics.CollisionDetection
                 ref var bodyLocationB = ref Bodies.HandleToLocation[b.BodyHandle.Value];
                 Debug.Assert(bodyLocationA.SetIndex == 0 || bodyLocationB.SetIndex == 0, "One of the two bodies must be active. Otherwise, something is busted!");
                 ref var setB = ref Bodies.Sets[bodyLocationB.SetIndex];
-                ref var stateB = ref setB.SolverStates[bodyLocationB.Index];
+                ref var stateB = ref setB.DynamicsState[bodyLocationB.Index];
                 ref var collidableB = ref setB.Collidables[bodyLocationB.Index];
                 AddBatchEntries(workerIndex, ref overlapWorker, ref pair,
                     ref collidableA.Continuity, ref collidableB.Continuity,
@@ -477,7 +474,7 @@ namespace BepuPhysics.CollisionDetection
 
         }
 
-        unsafe struct CCDSweepFilter : ISweepFilter
+        struct CCDSweepFilter : ISweepFilter
         {
             public NarrowPhase<TCallbacks> NarrowPhase;
             public CollidablePair Pair;
@@ -491,7 +488,7 @@ namespace BepuPhysics.CollisionDetection
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe void AddBatchEntries(int workerIndex, ref OverlapWorker overlapWorker,
+        private void AddBatchEntries(int workerIndex, ref OverlapWorker overlapWorker,
             ref CollidablePair pair,
             ref ContinuousDetection continuityA, ref ContinuousDetection continuityB,
             TypedIndex shapeA, TypedIndex shapeB,

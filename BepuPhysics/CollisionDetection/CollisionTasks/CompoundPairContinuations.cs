@@ -19,19 +19,19 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void GetChildAData<TCallbacks>(ref CollisionBatcher<TCallbacks> collisionBatcher, ref NonconvexReduction continuation, in BoundsTestedPair pair, int childIndexA,
+        public void GetChildAData<TCallbacks>(ref CollisionBatcher<TCallbacks> collisionBatcher, ref NonconvexReduction continuation, in BoundsTestedPair pair, int childIndexA,
             out RigidPose childPoseA, out int childTypeA, out void* childShapeDataA)
             where TCallbacks : struct, ICollisionCallbacks
         {
             ref var compoundA = ref Unsafe.AsRef<TCompoundA>(pair.A);
             ref var compoundChildA = ref compoundA.GetChild(childIndexA);
-            Compound.GetRotatedChildPose(compoundChildA.LocalPose, pair.OrientationA, out childPoseA);
+            Compound.GetRotatedChildPose(compoundChildA.LocalPosition, compoundChildA.LocalOrientation, pair.OrientationA, out childPoseA);
             childTypeA = compoundChildA.ShapeIndex.Type;
             collisionBatcher.Shapes[childTypeA].GetShapeData(compoundChildA.ShapeIndex.Index, out childShapeDataA, out _);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void ConfigureContinuationChild<TCallbacks>(
+        public void ConfigureContinuationChild<TCallbacks>(
             ref CollisionBatcher<TCallbacks> collisionBatcher, ref NonconvexReduction continuation, int continuationChildIndex, in BoundsTestedPair pair, int childIndexA, int childTypeA, int childIndexB, in RigidPose childPoseA,
             out RigidPose childPoseB, out int childTypeB, out void* childShapeDataB)
             where TCallbacks : struct, ICollisionCallbacks
@@ -43,7 +43,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             childTypeB = compoundChildB.ShapeIndex.Type;
             collisionBatcher.Shapes[childTypeB].GetShapeData(compoundChildB.ShapeIndex.Index, out childShapeDataB, out _);
 
-            Compound.GetRotatedChildPose(compoundChildB.LocalPose, pair.OrientationB, out childPoseB);
+            Compound.GetRotatedChildPose(compoundChildB.LocalPosition, compoundChildB.LocalOrientation, pair.OrientationB, out childPoseB);
             if (pair.FlipMask < 0)
             {
                 continuationChild.ChildIndexA = childIndexB;

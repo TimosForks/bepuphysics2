@@ -1,10 +1,5 @@
 ﻿using BepuPhysics.Collidables;
-using BepuUtilities;
-using BepuUtilities.Collections;
-using BepuUtilities.Memory;
-using System;
 using System.Diagnostics;
-using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace BepuPhysics.CollisionDetection.CollisionTasks
@@ -31,9 +26,9 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
     {
         public ConvexCompoundCollisionTask()
         {
-            BatchSize = 32;
-            ShapeTypeIndexA = default(TConvex).TypeId;
-            ShapeTypeIndexB = default(TCompound).TypeId;
+            BatchSize = 16;
+            ShapeTypeIndexA = TConvex.TypeId;
+            ShapeTypeIndexB = TCompound.TypeId;
             SubtaskGenerator = true;
             PairType = CollisionTaskPairType.BoundsTestedPair;
         }
@@ -50,10 +45,14 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             {
                 ref var pairOverlaps = ref overlaps.GetOverlapsForPair(i);
                 ref var pairQuery = ref overlaps.GetQueryForPair(i);
+                ref var pair = ref pairs[i];
                 if (pairOverlaps.Count > 0)
                 {
-                    ref var pair = ref pairs[i];
                     ref var compound = ref Unsafe.AsRef<TCompound>(pair.B);
+                    //If there are more overlaps than we can represent in the packed index, just ignore the surplus. This isn't wonderful, but it's better than an access violation.
+                    Debug.Assert(pairOverlaps.Count < PairContinuation.ExclusiveMaximumChildIndex, "Are there REALLY supposed to be that many overlaps? Might need to expand the packed representation if so.");
+                    if (pairOverlaps.Count >= PairContinuation.ExclusiveMaximumChildIndex)
+                        pairOverlaps.Count = PairContinuation.ExclusiveMaximumChildIndex - 1;
                     ref var continuation = ref continuationHandler.CreateContinuation(ref batcher, pairOverlaps.Count, pair, pairQuery, out var continuationIndex);
 
                     int nextContinuationChildIndex = 0;
@@ -96,10 +95,14 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                         }
                         else
                         {
-                            continuation.OnChildCompletedEmpty(ref subpairContinuation, ref batcher);
+                            batcher.ProcessUntestedSubpairConvexResult(ref subpairContinuation);
                         }
 
                     }
+                }
+                else
+                {
+                    batcher.ProcessEmptyResult(ref pair.Continuation);
                 }
             }
             overlaps.Dispose(batcher.Pool);

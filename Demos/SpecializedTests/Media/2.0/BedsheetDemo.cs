@@ -19,7 +19,7 @@ namespace Demos.Demos.Media
     {
         delegate bool KinematicDecider(int rowIndex, int columnIndex, int width, int height);
 
-        BodyHandle[,] CreateBodyGrid(in Vector3 position, in Quaternion orientation, int width, int height, float spacing, float bodyRadius, float massPerBody,
+        BodyHandle[,] CreateBodyGrid(Vector3 position, Quaternion orientation, int width, int height, float spacing, float bodyRadius, float massPerBody,
             int instanceId, CollidableProperty<ClothCollisionFilter> filters, KinematicDecider isKinematic)
         {
             var description = BodyDescription.CreateKinematic(orientation, Simulation.Shapes.Add(new Sphere(bodyRadius)), 0.01f);
@@ -103,7 +103,7 @@ namespace Demos.Demos.Media
 
         RolloverInfo rolloverInfo;
 
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(70, 40, -80);
             camera.Yaw = -MathF.PI * 0.8f;

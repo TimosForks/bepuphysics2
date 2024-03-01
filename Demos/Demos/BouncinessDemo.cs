@@ -16,8 +16,13 @@ namespace Demos.Demos
     /// Shows how to configure things to bounce in the absence of a coefficient of restitution.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// v2 does not support traditional coefficients of restitution because it conflicts with speculative contacts.
     /// All contacts are, however, springs. With a little configuration, you can give objects physically reasonable bounciness.
+    /// </para>
+    /// <para>
+    /// For a similar example of friction, see the <see cref="FrictionDemo"/>.
+    /// </para>
     /// </remarks>
     public class BouncinessDemo : Demo
     {
@@ -27,8 +32,15 @@ namespace Demos.Demos
             public float FrictionCoefficient;
             public float MaximumRecoveryVelocity;
         }
-        public unsafe struct BounceCallbacks : INarrowPhaseCallbacks
+        public struct BounceCallbacks : INarrowPhaseCallbacks
         {
+            /// <summary>
+            /// Maps <see cref="CollidableReference"/> entries to their <see cref="SimpleMaterial"/>.
+            /// </summary>
+            /// <remarks>
+            /// The narrow phase callbacks need some way to get the material data for this demo, but there's no requirement that you use the <see cref="CollidableProperty{T}"/> type.
+            /// It's just a fairly convenient and simple option.
+            /// </remarks>
             public CollidableProperty<SimpleMaterial> CollidableMaterials;
 
             public void Initialize(Simulation simulation)
@@ -53,7 +65,7 @@ namespace Demos.Demos
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public unsafe bool ConfigureContactManifold<TManifold>(int workerIndex, CollidablePair pair, ref TManifold manifold, out PairMaterialProperties pairMaterial) where TManifold : unmanaged, IContactManifold<TManifold>
+            public bool ConfigureContactManifold<TManifold>(int workerIndex, CollidablePair pair, ref TManifold manifold, out PairMaterialProperties pairMaterial) where TManifold : unmanaged, IContactManifold<TManifold>
             {
                 //For the purposes of this demo, we'll use multiplicative blending for the friction and choose spring properties according to which collidable has a higher maximum recovery velocity.
                 var a = CollidableMaterials[pair.A];
@@ -75,7 +87,7 @@ namespace Demos.Demos
             }
         }
 
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(0, 40, 200);
             camera.Yaw = 0;

@@ -1,18 +1,16 @@
 ﻿using BepuPhysics.Collidables;
 using BepuPhysics.CollisionDetection;
-using BepuPhysics.Constraints;
 using BepuUtilities;
 using BepuUtilities.Collections;
 using BepuUtilities.Memory;
 using System;
 using System.Diagnostics;
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace BepuPhysics
 {
-    public class IslandSleeper
+    public unsafe class IslandSleeper
     {
         IdPool setIdPool;
         Bodies bodies;
@@ -274,8 +272,8 @@ namespace BepuPhysics
             Debug.Assert(workerTraversalResults.Allocated && workerTraversalResults.Length > workerIndex);
             ref var results = ref workerTraversalResults[workerIndex];
             results.Islands = new QuickList<IslandScaffold>(64, threadPool);
-            var bodyIndices = new QuickList<int>(Math.Min(InitialIslandBodyCapacity, bodies.ActiveSet.Count), threadPool);
-            var constraintHandles = new QuickList<ConstraintHandle>(Math.Min(InitialIslandConstraintCapacity, solver.HandlePool.HighestPossiblyClaimedId + 1), threadPool);
+            var bodyIndices = new QuickList<int>(int.Min(InitialIslandBodyCapacity, bodies.ActiveSet.Count), threadPool);
+            var constraintHandles = new QuickList<ConstraintHandle>(int.Max(8, int.Min(InitialIslandConstraintCapacity, solver.HandlePool.HighestPossiblyClaimedId + 1)), threadPool);
 
             TraversalTest<TPredicate> traversalTest;
             traversalTest.Predicate = predicate;
@@ -329,11 +327,12 @@ namespace BepuPhysics
         void FindIslands(int workerIndex)
         {
             //The only reason we separate this out is to make it easier for the main pool to be passed in if there is only a single thread. 
-            FindIslands(workerIndex, threadDispatcher.GetThreadMemoryPool(workerIndex));
+            FindIslands(workerIndex, threadDispatcher.WorkerPools[workerIndex]);
         }
 
         Action<int> gatherDelegate;
-        unsafe void Gather(int workerIndex)
+
+        void Gather(int workerIndex)
         {
             while (true)
             {
@@ -359,13 +358,13 @@ namespace BepuPhysics
                         //Note that we are just copying the constraint list reference; we don't have to reallocate it.
                         //Keep this in mind when removing the object from the active set. We don't want to dispose the list since we're still using it.
                         targetSet.Constraints[targetIndex] = sourceSet.Constraints[sourceIndex];
-                        targetSet.SolverStates[targetIndex] = sourceSet.SolverStates[sourceIndex];
+                        targetSet.DynamicsState[targetIndex] = sourceSet.DynamicsState[sourceIndex];
 
                         if (sourceCollidable.Shape.Exists)
                         {
                             //Gather the broad phase data so that the later active set removal phase can stick it into the static broad phase structures.
                             ref var broadPhaseData = ref inactiveSetReference.BroadPhaseData[targetIndex];
-                            broadPhaseData.Reference = broadPhase.activeLeaves[sourceCollidable.BroadPhaseIndex];
+                            broadPhaseData.Reference = broadPhase.ActiveLeaves[sourceCollidable.BroadPhaseIndex];
                             broadPhase.GetActiveBoundsPointers(sourceCollidable.BroadPhaseIndex, out var minPtr, out var maxPtr);
                             broadPhaseData.Bounds.Min = *minPtr;
                             broadPhaseData.Bounds.Max = *maxPtr;
@@ -497,7 +496,7 @@ namespace BepuPhysics
                                 largestBodyCount = setCount;
                         }
                         //We just arbitrarily guess a few pairs per body. It might be wrong, but that's fine- it'll resize if needed. Just don't want to constantly resize.
-                        var setBuilder = new SleepingSetBuilder(pool, largestBodyCount * 4, largestBodyCount);
+                        var setBuilder = new SleepingSetBuilder(pool, largestBodyCount * 4);
                         for (int setReferenceIndex = 0; setReferenceIndex < newInactiveSets.Count; ++setReferenceIndex)
                         {
                             pairCache.SleepTypeBatchPairs(ref setBuilder, newInactiveSets[setReferenceIndex].Index, solver);
@@ -532,7 +531,7 @@ namespace BepuPhysics
         int scheduleOffset;
 
         [Conditional("DEBUG")]
-        unsafe void PrintIsland(ref IslandScaffold island)
+        void PrintIsland(ref IslandScaffold island)
         {
             Console.Write($"{island.BodyIndices.Count} body handles: ");
             for (int i = 0; i < island.BodyIndices.Count; ++i)
@@ -591,7 +590,7 @@ namespace BepuPhysics
         }
 
 
-        unsafe void Sleep(ref QuickList<int> traversalStartBodyIndices, IThreadDispatcher threadDispatcher, bool deterministic, int targetSleptBodyCount, int targetTraversedBodyCount, bool forceSleep)
+        void Sleep(ref QuickList<int> traversalStartBodyIndices, IThreadDispatcher threadDispatcher, bool deterministic, int targetSleptBodyCount, int targetTraversedBodyCount, bool forceSleep)
         {
             //There are four threaded phases to sleep:
             //1) Traversing the constraint graph to identify 'simulation islands' that satisfy the sleep conditions.
@@ -648,7 +647,7 @@ namespace BepuPhysics
                     //The source of traversal worker resources is a per-thread pool.
                     for (int workerIndex = 0; workerIndex < workerTraversalThreadCount; ++workerIndex)
                     {
-                        workerTraversalResults[workerIndex].Dispose(threadDispatcher.GetThreadMemoryPool(workerIndex));
+                        workerTraversalResults[workerIndex].Dispose(threadDispatcher.WorkerPools[workerIndex]);
                     }
                 }
                 else

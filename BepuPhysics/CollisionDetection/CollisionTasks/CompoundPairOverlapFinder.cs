@@ -1,12 +1,9 @@
 ﻿using BepuPhysics.Collidables;
 using BepuUtilities;
 using BepuUtilities.Memory;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace BepuPhysics.CollisionDetection.CollisionTasks
 {
@@ -20,7 +17,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
         where TCompoundB : struct, IBoundsQueryableCompound
     {
 
-        public unsafe void FindLocalOverlaps(ref Buffer<BoundsTestedPair> pairs, int pairCount, BufferPool pool, Shapes shapes, float dt, out CompoundPairOverlaps overlaps)
+        public static unsafe void FindLocalOverlaps(ref Buffer<BoundsTestedPair> pairs, int pairCount, BufferPool pool, Shapes shapes, float dt, out CompoundPairOverlaps overlaps)
         {
             var totalCompoundChildCount = 0;
             for (int i = 0; i < pairCount; ++i)
@@ -29,7 +26,18 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             }
             overlaps = new CompoundPairOverlaps(pool, pairCount, totalCompoundChildCount);
             ref var pairsToTest = ref overlaps.pairQueries;
-            var subpairData = stackalloc SubpairData[totalCompoundChildCount];
+            //Stack overflows are very possible with larger compounds! Guard against it.
+            Buffer<SubpairData> subpairData;
+            const int stackallocThreshold = 1024;
+            if (totalCompoundChildCount <= stackallocThreshold)
+            {
+                var memory = stackalloc SubpairData[totalCompoundChildCount];
+                subpairData = new Buffer<SubpairData>(memory, totalCompoundChildCount);
+            }
+            else
+            {
+                subpairData = new Buffer<SubpairData>(totalCompoundChildCount, pool);
+            }
             int nextSubpairIndex = 0;
             for (int i = 0; i < pairCount; ++i)
             {
@@ -79,7 +87,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                     Vector3Wide.WriteFirst(subpair.Pair->AngularVelocityB, ref GatherScatter.GetOffsetInstance(ref angularVelocityB, j));
                     Unsafe.Add(ref Unsafe.As<Vector<float>, float>(ref maximumAllowedExpansion), j) = subpair.Pair->MaximumExpansion;
 
-                    RigidPoseWide.WriteFirst(subpair.Child->LocalPose, ref GatherScatter.GetOffsetInstance(ref localPosesA, j));
+                    RigidPoseWide.WriteFirst(CompoundChild.AsPose(ref *subpair.Child), ref GatherScatter.GetOffsetInstance(ref localPosesA, j));
                 }
 
                 QuaternionWide.Conjugate(orientationB, out var toLocalB);
@@ -117,6 +125,8 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             Debug.Assert(totalCompoundChildCount > 0);
             Unsafe.AsRef<TCompoundB>(pairsToTest[0].Container).FindLocalOverlaps<CompoundPairOverlaps, ChildOverlapsCollection>(ref pairsToTest, pool, shapes, ref overlaps);
 
+            if (subpairData.Length > stackallocThreshold)
+                subpairData.Dispose(pool);
         }
 
     }

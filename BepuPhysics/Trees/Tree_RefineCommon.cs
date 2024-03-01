@@ -1,9 +1,7 @@
-﻿using BepuUtilities;
-using BepuUtilities.Collections;
+﻿using BepuUtilities.Collections;
 using BepuUtilities.Memory;
 using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace BepuPhysics.Trees
@@ -25,7 +23,7 @@ namespace BepuPhysics.Trees
         }
 
 
-        public unsafe void Insert(ref Node node, ref QuickList<int> subtrees)
+        public void Insert(ref Node node, ref QuickList<int> subtrees)
         {
             ref var children = ref node.A;
             for (int childIndex = 0; childIndex < 2; ++childIndex)
@@ -234,7 +232,7 @@ namespace BepuPhysics.Trees
             var internalReferences = new QuickList<int>(subtreeNodePointers.Count, pool);
             internalReferences.Add(0, pool);
             ValidateStaging(stagingNodes, 0, ref subtreeNodePointers, ref collectedSubtreeReferences, ref internalReferences, pool, out int foundSubtrees, out int foundLeafCount);
-            if (treeletParent < -1 || treeletParent >= nodeCount)
+            if (treeletParent < -1 || treeletParent >= NodeCount)
                 throw new Exception("Bad treelet parent.");
             if (treeletIndexInParent < -1 || (treeletParent >= 0 && treeletIndexInParent >= 2))
                 throw new Exception("Bad treelet index in parent.");

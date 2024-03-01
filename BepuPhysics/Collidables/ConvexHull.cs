@@ -33,7 +33,7 @@ namespace BepuPhysics.Collidables
         }
     }
 
-    public struct ConvexHull : IConvexShape
+    public struct ConvexHull : IConvexShape, IDisposableShape
     {
         /// <summary>
         /// Bundled points of the convex hull.
@@ -60,7 +60,8 @@ namespace BepuPhysics.Collidables
         /// <param name="center">Computed center of the convex hull before the hull was recentered.</param>
         public ConvexHull(Span<Vector3> points, BufferPool pool, out Vector3 center)
         {
-            ConvexHullHelper.CreateShape(points, pool, out center, out this);
+            if (!ConvexHullHelper.CreateShape(points, pool, out center, out this))
+                throw new ArgumentException("Could not create a convex hull from the point set; is it degenerate? Convex hull shapes must have volume.");
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -137,7 +138,7 @@ namespace BepuPhysics.Collidables
             }
         }
 
-        public readonly void ComputeBounds(in Quaternion orientation, out Vector3 min, out Vector3 max)
+        public readonly void ComputeBounds(Quaternion orientation, out Vector3 min, out Vector3 max)
         {
             QuaternionWide.Broadcast(orientation, out var orientationWide);
             ComputeBounds(orientationWide, out min, out max);
@@ -186,20 +187,27 @@ namespace BepuPhysics.Collidables
         public readonly BodyInertia ComputeInertia(float mass)
         {
             var triangleSource = new ConvexHullTriangleSource(this);
-            MeshInertiaHelper.ComputeClosedInertia(ref triangleSource, mass, out _, out var inertiaTensor);
+            MeshInertiaHelper.ComputeClosedInertia(ref triangleSource, mass, out var volume, out var inertiaTensor);
+            //While it's possible to go through the construction process on a convex hull with no volume, it'll very likely break ray tests which rely on bounding planes, so we don't support it.
+            Debug.Assert(
+                FaceToVertexIndicesStart.Length > 2 &&
+                volume > 0 && !float.IsNaN(inertiaTensor.XX) &&
+                !float.IsNaN(inertiaTensor.YX) && !float.IsNaN(inertiaTensor.YY) && !float.IsNaN(inertiaTensor.ZX) && !float.IsNaN(inertiaTensor.ZY) && !float.IsNaN(inertiaTensor.ZZ),
+                "Convex hull must have volume.");
             BodyInertia inertia;
             inertia.InverseMass = 1f / mass;
             Symmetric3x3.Invert(inertiaTensor, out inertia.InverseInertiaTensor);
             return inertia;
         }
 
-        public readonly ShapeBatch CreateShapeBatch(BufferPool pool, int initialCapacity, Shapes shapeBatches)
+        public static ShapeBatch CreateShapeBatch(BufferPool pool, int initialCapacity, Shapes shapeBatches)
         {
             return new ConvexHullShapeBatch(pool, initialCapacity);
         }
 
-        public readonly bool RayTest(in RigidPose pose, in Vector3 origin, in Vector3 direction, out float t, out Vector3 normal)
+        public readonly bool RayTest(in RigidPose pose, Vector3 origin, Vector3 direction, out float t, out Vector3 normal)
         {
+            Debug.Assert(FaceToVertexIndicesStart.Length > 2, "Convex hull appears to be degenerate; convex hull must have volume or ray tests will fail.");
             Matrix3x3.CreateFromQuaternion(pose.Orientation, out var orientation);
             var shapeToRay = origin - pose.Position;
             Matrix3x3.TransformTranspose(shapeToRay, orientation, out var localOrigin);
@@ -282,7 +290,7 @@ namespace BepuPhysics.Collidables
         /// Type id of convex hull shapes.
         /// </summary>
         public const int Id = 5;
-        public readonly int TypeId { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return Id; } }
+        public static int TypeId { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return Id; } }
     }
 
     public struct ConvexHullWide : IShapeWide<ConvexHull>
@@ -291,7 +299,7 @@ namespace BepuPhysics.Collidables
         //The "wide" variant is simply a collection of convex hull instances.
         public Buffer<ConvexHull> Hulls;
 
-        public int MinimumWideRayCount => int.MaxValue; //'Wide' ray tests just fall through to scalar tests anyway.
+        public static int MinimumWideRayCount => int.MaxValue; //'Wide' ray tests just fall through to scalar tests anyway.
 
         public bool AllowOffsetMemoryAccess => false;
         public int InternalAllocationSize => Vector<float>.Count * Unsafe.SizeOf<ConvexHull>();
@@ -403,6 +411,13 @@ namespace BepuPhysics.Collidables
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteSlot(int index, in ConvexHull source)
         {
+            Debug.Assert(
+                source.Points.Allocated && source.BoundingPlanes.Allocated && source.FaceToVertexIndicesStart.Allocated && source.FaceVertexIndices.Allocated &&
+                (uint)source.Points.Length < 100000 &&
+                (uint)source.BoundingPlanes.Length < 100000 &&
+                (uint)source.FaceToVertexIndicesStart.Length < 100000 &&
+                (uint)source.FaceVertexIndices.Length < 100000,
+                "If a convex hull has an extremely large (or negative) count on any of its buffers, it is very likely undefined trash data.");
             Hulls[index] = source;
         }
     }

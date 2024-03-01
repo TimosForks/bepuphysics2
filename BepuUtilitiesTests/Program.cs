@@ -9,7 +9,6 @@ namespace BEPUutilitiesTests
             CodeGenTests.Test();
             AllocatorTests.TestChurnStability();
             QuickCollectionTests.Test();
-            //BoundingTests.Test();
             Console.WriteLine();
             AffineTests.Test();
             Console.WriteLine();
@@ -18,6 +17,8 @@ namespace BEPUutilitiesTests
             Matrix3x3Tests.Test();
             Console.WriteLine();
             Matrix4x4Tests.Test();
+            Console.WriteLine();
+            SymmetricTests.Test();
 
         }
 

@@ -8,13 +8,13 @@ namespace DemoRenderer.Constraints
 {
     struct OneBodyLinearServoLineExtractor : IConstraintLineExtractor<OneBodyLinearServoPrestepData>
     {
-        public int LinesPerConstraint => 2;
+        public static int LinesPerConstraint => 2;
 
-        public unsafe void ExtractLines(ref OneBodyLinearServoPrestepData prestepBundle, int setIndex, int* bodyIndices,
+        public static unsafe void ExtractLines(ref OneBodyLinearServoPrestepData prestepBundle, int setIndex, int* bodyIndices,
             Bodies bodies, ref Vector3 tint, ref QuickList<LineInstance> lines)
         {
             //Could do bundles of constraints at a time, but eh.
-            ref var pose = ref bodies.Sets[setIndex].SolverStates[*bodyIndices].Motion.Pose;
+            ref var pose = ref bodies.Sets[setIndex].DynamicsState[*bodyIndices].Motion.Pose;
             Vector3Wide.ReadFirst(prestepBundle.LocalOffset, out var localOffset);
             Vector3Wide.ReadFirst(prestepBundle.Target, out var target);
             QuaternionEx.Transform(localOffset, pose.Orientation, out var worldOffset);

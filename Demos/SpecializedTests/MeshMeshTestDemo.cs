@@ -1,14 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Numerics;
-using System.Text;
+﻿using System.Numerics;
 using BepuPhysics;
 using BepuPhysics.Collidables;
 using BepuPhysics.Constraints;
 using BepuUtilities;
 using DemoContentLoader;
 using DemoRenderer;
-using Demos.Demos;
 
 namespace Demos.SpecializedTests
 {
@@ -24,7 +20,7 @@ namespace Demos.SpecializedTests
 
             Simulation = Simulation.Create(BufferPool, new DemoNarrowPhaseCallbacks(new SpringSettings(30, 1)), new DemoPoseIntegratorCallbacks(new Vector3(0, -10, 0)), new SolveDescription(8, 1));
 
-            DemoMeshHelper.LoadModel(content, BufferPool, @"Content\newt.obj", Vector3.One, out var mesh);
+            var mesh = DemoMeshHelper.LoadModel(content, BufferPool, @"Content\newt.obj", Vector3.One);
             var approximateInertia = new Box(2.5f, 1, 4).ComputeInertia(1);
             var meshShapeIndex = Simulation.Shapes.Add(mesh);
             for (int meshIndex = 0; meshIndex < 3; ++meshIndex)

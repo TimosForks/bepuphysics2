@@ -2,11 +2,8 @@
 using BepuUtilities.Collections;
 using BepuUtilities.Memory;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading;
 
 namespace BepuPhysics.CollisionDetection
 {
@@ -200,7 +197,7 @@ namespace BepuPhysics.CollisionDetection
                 for (int i = 0; i < threadCount; ++i)
                 {
                     //Note the use of per-thread pools. It is possible for the workers to resize the collections.
-                    workerCaches[i] = new WorkerCache(dispatcher.GetThreadMemoryPool(i), batchCapacity, capacityPerBatch);
+                    workerCaches[i] = new WorkerCache(dispatcher.WorkerPools[i], batchCapacity, capacityPerBatch);
                 }
             }
             else

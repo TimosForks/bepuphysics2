@@ -2,7 +2,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using BepuPhysics.Collidables;
-using BepuUtilities;
 using BepuUtilities.Memory;
 
 namespace BepuPhysics.CollisionDetection.SweepTasks
@@ -18,14 +17,14 @@ namespace BepuPhysics.CollisionDetection.SweepTasks
     {
         public ConvexHomogeneousCompoundSweepTask()
         {
-            ShapeTypeIndexA = default(TConvex).TypeId;
-            ShapeTypeIndexB = default(TCompound).TypeId;
+            ShapeTypeIndexA = TConvex.TypeId;
+            ShapeTypeIndexB = TCompound.TypeId;
         }
 
 
         protected override unsafe bool PreorderedTypeSweep<TSweepFilter>(
-            void* shapeDataA, in Quaternion orientationA, in BodyVelocity velocityA,
-            void* shapeDataB, in Vector3 offsetB, in Quaternion orientationB, in BodyVelocity velocityB, float maximumT,
+            void* shapeDataA, Quaternion orientationA, in BodyVelocity velocityA,
+            void* shapeDataB, Vector3 offsetB, Quaternion orientationB, in BodyVelocity velocityB, float maximumT,
             float minimumProgression, float convergenceThreshold, int maximumIterationCount,
             bool flipRequired, ref TSweepFilter filter, Shapes shapes, SweepTaskRegistry sweepTasks, BufferPool pool, out float t0, out float t1, out Vector3 hitLocation, out Vector3 hitNormal)
         {
@@ -34,10 +33,10 @@ namespace BepuPhysics.CollisionDetection.SweepTasks
             t1 = float.MaxValue;
             hitLocation = new Vector3();
             hitNormal = new Vector3();
-            var task = sweepTasks.GetTask(ShapeTypeIndexA, default(TChildType).TypeId);
+            var task = sweepTasks.GetTask(ShapeTypeIndexA, TChildType.TypeId);
             if (task != null)
             {
-                default(TOverlapFinder).FindOverlaps(ref Unsafe.AsRef<TConvex>(shapeDataA), orientationA, velocityA, ref compound, offsetB, orientationB, velocityB, maximumT, shapes, pool, out var overlaps);
+                TOverlapFinder.FindOverlaps(ref Unsafe.AsRef<TConvex>(shapeDataA), orientationA, velocityA, ref compound, offsetB, orientationB, velocityB, maximumT, shapes, pool, out var overlaps);
                 for (int i = 0; i < overlaps.Count; ++i)
                 {
                     var childIndex = overlaps.Overlaps[i];
@@ -67,7 +66,7 @@ namespace BepuPhysics.CollisionDetection.SweepTasks
             return t1 < float.MaxValue;
         }
 
-        protected override unsafe bool PreorderedTypeSweep(void* shapeDataA, in RigidPose localPoseA, in Quaternion orientationA, in BodyVelocity velocityA, void* shapeDataB, in RigidPose localPoseB, in Vector3 offsetB, in Quaternion orientationB, in BodyVelocity velocityB, float maximumT, float minimumProgression, float convergenceThreshold, int maximumIterationCount, out float t0, out float t1, out Vector3 hitLocation, out Vector3 hitNormal)
+        protected override unsafe bool PreorderedTypeSweep(void* shapeDataA, in RigidPose localPoseA, Quaternion orientationA, in BodyVelocity velocityA, void* shapeDataB, in RigidPose localPoseB, Vector3 offsetB, Quaternion orientationB, in BodyVelocity velocityB, float maximumT, float minimumProgression, float convergenceThreshold, int maximumIterationCount, out float t0, out float t1, out Vector3 hitLocation, out Vector3 hitNormal)
         {
             throw new NotImplementedException("Compounds can never be nested; this should never be called.");
         }

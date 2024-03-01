@@ -1,15 +1,9 @@
 ﻿using BepuUtilities;
-using BepuUtilities.Collections;
 using BepuUtilities.Memory;
-using BepuPhysics.Collidables;
-using BepuPhysics.Constraints;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Text;
 
 namespace BepuPhysics.CollisionDetection
 {
@@ -54,7 +48,7 @@ namespace BepuPhysics.CollisionDetection
                 public float T;
 
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                public void Initialize(ref CollidablePair pair, in Vector3 relativeLinearVelocity, in Vector3 angularVelocityA, in Vector3 angularVelocityB, float t)
+                public void Initialize(ref CollidablePair pair, Vector3 relativeLinearVelocity, Vector3 angularVelocityA, Vector3 angularVelocityB, float t)
                 {
                     Pair = pair;
                     AngularA = angularVelocityA;
@@ -120,16 +114,15 @@ namespace BepuPhysics.CollisionDetection
                 return new CCDContinuationIndex((int)ConstraintGeneratorType.Discrete, index);
             }
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public CCDContinuationIndex AddContinuous(ref CollidablePair pair, in Vector3 relativeLinearVelocity, in Vector3 angularVelocityA, in Vector3 angularVelocityB, float t)
+            public CCDContinuationIndex AddContinuous(ref CollidablePair pair, Vector3 relativeLinearVelocity, Vector3 angularVelocityA, Vector3 angularVelocityB, float t)
             {
                 continuous.Allocate(pool, out var index).Initialize(ref pair, relativeLinearVelocity, angularVelocityA, angularVelocityB, t);
                 return new CCDContinuationIndex((int)ConstraintGeneratorType.Continuous, index);
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public unsafe void OnPairCompleted<TManifold>(int pairId, ref TManifold manifoldReference) where TManifold : unmanaged, IContactManifold<TManifold>
+            public void OnPairCompleted<TManifold>(int pairId, ref TManifold manifoldReference) where TManifold : unmanaged, IContactManifold<TManifold>
             {
-                var todoTestCollisionCache = default(EmptyCollisionCache);
                 CCDContinuationIndex continuationId = new CCDContinuationIndex(pairId);
                 Debug.Assert(continuationId.Exists);
                 var continuationIndex = continuationId.Index;
@@ -137,11 +130,11 @@ namespace BepuPhysics.CollisionDetection
                 //Check all contact data for invalid data early so that we don't end up spewing NaNs all over the engine and catching in the broad phase or some other highly indirect location.
                 for (int i = 0; i < manifoldReference.Count; ++i)
                 {
-                    manifoldReference.GetDepth(ref manifoldReference, i).Validate();
-                    ref var normal = ref manifoldReference.GetNormal(ref manifoldReference, i);
+                    manifoldReference.GetDepth(i).Validate();
+                    var normal = manifoldReference.GetNormal(i);
                     normal.Validate();
                     Debug.Assert(Math.Abs(normal.LengthSquared() - 1) < 1e-5f, "Normals should be unit length. Something's gone wrong!");
-                    manifoldReference.GetOffset(ref manifoldReference, i).Validate();
+                    manifoldReference.GetOffset(i).Validate();
                 }
 #endif
                 switch ((ConstraintGeneratorType)continuationId.Type)
@@ -150,7 +143,7 @@ namespace BepuPhysics.CollisionDetection
                         {
                             //Direct has no need for accumulating multiple reports; we can immediately dispatch.
                             ref var continuation = ref discrete.Caches[continuationIndex];
-                            narrowPhase.UpdateConstraintsForPair(workerIndex, ref continuation.Pair, ref manifoldReference, ref todoTestCollisionCache);
+                            narrowPhase.UpdateConstraintsForPair(workerIndex, continuation.Pair, ref manifoldReference);
                             discrete.Return(continuationIndex, pool);
                         }
                         break;
@@ -184,7 +177,7 @@ namespace BepuPhysics.CollisionDetection
                                     contact.Depth -= velocityAtContact * continuation.T;
                                 }
                             }
-                            narrowPhase.UpdateConstraintsForPair(workerIndex, ref continuation.Pair, ref manifoldReference, ref todoTestCollisionCache);
+                            narrowPhase.UpdateConstraintsForPair(workerIndex, continuation.Pair, ref manifoldReference);
                             continuous.Return(continuationIndex, pool);
                         }
                         break;
@@ -217,9 +210,16 @@ namespace BepuPhysics.CollisionDetection
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public unsafe void OnChildPairCompleted(int pairId, int childA, int childB, ref ConvexContactManifold manifold)
+            public void OnChildPairCompleted(int pairId, int childA, int childB, ref ConvexContactManifold manifold)
             {
-                narrowPhase.Callbacks.ConfigureContactManifold(workerIndex, GetCollidablePair(pairId), childA, childB, ref manifold);
+                var keepManifold = narrowPhase.Callbacks.ConfigureContactManifold(workerIndex, GetCollidablePair(pairId), childA, childB, ref manifold);
+                //This looks a little weird because it is. 
+                //The other ConfigureContactManifold function (over the entire pair) has a bool return for whether a constraint should be created.
+                //For API consistency, we also have a bool return for the per-subpair case, but it's not about whether to create a constraint.
+                //It can prevent the manifold from contributing any contacts at all to the parent.
+                //The user *could* just set the manifold.Count = 0 themselves and it's completely equivalent, but shrug.
+                if (!keepManifold)
+                    manifold.Count = 0;
             }
 
             internal void Dispose()

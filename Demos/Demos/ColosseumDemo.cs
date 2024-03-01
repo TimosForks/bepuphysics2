@@ -59,7 +59,7 @@ namespace Demos.Demos
             return position;
         }
 
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(-30, 40, -30);
             camera.Yaw = MathHelper.Pi * 3f / 4;
@@ -85,7 +85,6 @@ namespace Demos.Demos
                 }
                 layerPosition.Y += platformsPerLayer * (ringBoxShape.Height * heightPerPlatform + ringBoxShape.Width);
             }
-
             //Console.WriteLine($"box count: {Simulation.Bodies.ActiveSet.Count}");
             Simulation.Statics.Add(new StaticDescription(new Vector3(0, -0.5f, 0), Simulation.Shapes.Add(new Box(500, 1, 500))));
 
@@ -93,7 +92,7 @@ namespace Demos.Demos
             bulletDescription = BodyDescription.CreateDynamic(new Vector3(), bulletShape.ComputeInertia(.1f), Simulation.Shapes.Add(bulletShape), 0.01f);
 
             var shootiePatootieShape = new Sphere(3f);
-            shootiePatootieDescription = BodyDescription.CreateDynamic(new Vector3(), shootiePatootieShape.ComputeInertia(100), new (Simulation.Shapes.Add(shootiePatootieShape), 0.1f), 0.01f);
+            shootiePatootieDescription = BodyDescription.CreateDynamic(new Vector3(), shootiePatootieShape.ComputeInertia(100), new(Simulation.Shapes.Add(shootiePatootieShape), 0.1f), 0.01f);
         }
 
         BodyDescription bulletDescription;

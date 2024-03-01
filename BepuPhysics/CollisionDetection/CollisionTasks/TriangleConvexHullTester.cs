@@ -2,7 +2,6 @@
 using BepuUtilities;
 using BepuUtilities.Memory;
 using System;
-using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
@@ -11,9 +10,9 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
     using DepthRefiner = DepthRefiner<ConvexHull, ConvexHullWide, ConvexHullSupportFinder, Triangle, TriangleWide, PretransformedTriangleSupportFinder>;
     public struct TriangleConvexHullTester : IPairTester<TriangleWide, ConvexHullWide, Convex4ContactManifoldWide>
     {
-        public int BatchSize => 16;
+        public static int BatchSize => 16;
 
-        public unsafe void Test(ref TriangleWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationA, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static unsafe void Test(ref TriangleWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationA, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             Unsafe.SkipInit(out manifold);
             Matrix3x3Wide.CreateFromQuaternion(orientationA, out var triangleOrientation);
@@ -201,6 +200,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
 
             var inverseTriangleNormalDotLocalNormal = Vector<float>.One / triangleNormalDotLocalNormal;
 
+            //Maximum number of edge-related contacts is 6. Maximum number of triangle vertex contacts is 3. Maximum number of hull vertex contacts is whatever the largest face is.
             int maximumContactCount = Math.Max(6, maximumFaceVertexCount);
             var candidates = stackalloc ManifoldCandidateScalar[maximumContactCount];
             //To find the contact manifold, we'll clip the triangle edges against the hull face as usual, but we're dealing with potentially
@@ -363,7 +363,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                     candidate.FeatureId = 0;
 
                 }
-                if (latestEntryAB < earliestExitAB && latestEntryAB > 0 && candidateCount < 6)
+                if (latestEntryAB < earliestExitAB && latestEntryAB > 0 && candidateCount < maximumContactCount)
                 {
                     //Create min contact.
                     var point = slotTriangleAB * latestEntryAB; //Note triangle A is origin for surface basis.
@@ -384,7 +384,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                     candidate.FeatureId = 2;
 
                 }
-                if (latestEntryBC < earliestExitBC && latestEntryBC > 0 && candidateCount < 6)
+                if (latestEntryBC < earliestExitBC && latestEntryBC > 0 && candidateCount < maximumContactCount)
                 {
                     //Create min contact.
                     var point = slotTriangleBC * latestEntryBC + slotTriangleAB;
@@ -405,7 +405,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                     candidate.FeatureId = 4;
 
                 }
-                if (latestEntryCA < earliestExitCA && latestEntryCA > 0 && candidateCount < 6)
+                if (latestEntryCA < earliestExitCA && latestEntryCA > 0 && candidateCount < maximumContactCount)
                 {
                     //Create min contact.
                     var point = slotTriangleCA * latestEntryCA - slotTriangleCA;
@@ -432,12 +432,12 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             manifold.FeatureId0 += faceCollisionFlag;
         }
 
-        public void Test(ref TriangleWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static void Test(ref TriangleWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             throw new NotImplementedException();
         }
 
-        public void Test(ref TriangleWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static void Test(ref TriangleWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             throw new NotImplementedException();
         }

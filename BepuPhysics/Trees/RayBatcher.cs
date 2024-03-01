@@ -1,11 +1,9 @@
 ﻿using BepuUtilities;
 using BepuUtilities.Memory;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace BepuPhysics.Trees
 {
@@ -26,7 +24,7 @@ namespace BepuPhysics.Trees
         public Vector3 InverseDirection;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void CreateFrom(in Vector3 origin, in Vector3 direction, float maximumT, out TreeRay treeRay)
+        public static void CreateFrom(Vector3 origin, Vector3 direction, float maximumT, out TreeRay treeRay)
         {
             //Note that this division has two odd properties:
             //1) If the local direction has a near zero component, it is clamped to a nonzero but extremely small value. This is a hack, but it works reasonably well.
@@ -40,7 +38,7 @@ namespace BepuPhysics.Trees
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void CreateFrom(in Vector3 origin, in Vector3 direction, float maximumT, int id, out RayData rayData, out TreeRay treeRay)
+        public static void CreateFrom(Vector3 origin, Vector3 direction, float maximumT, int id, out RayData rayData, out TreeRay treeRay)
         {
             rayData.Origin = origin;
             rayData.Id = id;
@@ -170,7 +168,22 @@ namespace BepuPhysics.Trees
             ResizeRayStacks(rayCapacity, treeDepthForPreallocation);
 
             stackPointer = stackPointerA0 = stackPointerB = stackPointerA1 = 0;
+        }
 
+        /// <summary>
+        /// Disposes all the resources backing the ray batcher.
+        /// </summary>
+        public void Dispose()
+        {
+            pool.Return(ref rayIndicesA0);
+            pool.Return(ref rayIndicesB);
+            pool.Return(ref rayIndicesA1);
+            pool.Return(ref stack);
+            //Easier to catch bugs if the references get cleared.
+            pool.Return(ref fallbackStack);
+            pool.Return(ref batchOriginalRays);
+            pool.Return(ref batchRays);
+            this = default;
         }
 
         void ResizeRayStacks(int rayCapacity, int treeDepthForPreallocation)
@@ -259,7 +272,7 @@ namespace BepuPhysics.Trees
             int this[int rayIndex] { get; }
         }
 
-        unsafe struct RootRaySource : ITreeRaySource
+        struct RootRaySource : ITreeRaySource
         {
             int rayCount;
 
@@ -314,7 +327,7 @@ namespace BepuPhysics.Trees
             }
         }
 
-        unsafe void TestNode<TRaySource>(ref Node node, byte depth, ref TRaySource raySource) where TRaySource : struct, ITreeRaySource
+        void TestNode<TRaySource>(ref Node node, byte depth, ref TRaySource raySource) where TRaySource : struct, ITreeRaySource
         {
             int a0Start = stackPointerA0;
             int bStart = stackPointerB;
@@ -546,22 +559,6 @@ namespace BepuPhysics.Trees
         {
             batchRayCount = 0;
         }
-
-        /// <summary>
-        /// Disposes all the resources backing the ray batcher.
-        /// </summary>
-        public void Dispose()
-        {
-            pool.ReturnUnsafely(rayIndicesA0.Id);
-            pool.ReturnUnsafely(rayIndicesB.Id);
-            pool.ReturnUnsafely(rayIndicesA1.Id);
-            pool.ReturnUnsafely(stack.Id);
-            pool.ReturnUnsafely(batchOriginalRays.Id);
-            pool.ReturnUnsafely(batchRays.Id);
-            //Easier to catch bugs if the references get cleared.
-            this = default;
-        }
-
 
     }
 }

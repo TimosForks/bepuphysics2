@@ -3,10 +3,8 @@ using BepuPhysics.CollisionDetection;
 using BepuPhysics.Trees;
 using BepuUtilities.Memory;
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace BepuPhysics
 {
@@ -26,7 +24,7 @@ namespace BepuPhysics
         /// <param name="t">Distance along the ray to the impact in units of ray direction length. In other words, hitLocation = ray.Origin + ray.Direction * t.</param>
         /// <param name="normal">Surface normal at the hit location.</param>
         /// <param name="childIndex">Index of the hit child. For convex shapes or other types that don't have multiple children, this is always zero.</param>
-        void OnRayHit(in RayData ray, ref float maximumT, float t, in Vector3 normal, int childIndex);
+        void OnRayHit(in RayData ray, ref float maximumT, float t, Vector3 normal, int childIndex);
     }
 
     /// <summary>
@@ -56,7 +54,7 @@ namespace BepuPhysics
         /// <param name="normal">Surface normal at the hit location.</param>
         /// <param name="collidable">Collidable hit by the ray.</param>
         /// <param name="childIndex">Index of the hit child. For convex shapes or other types that don't have multiple children, this is always zero.</param>
-        void OnRayHit(in RayData ray, ref float maximumT, float t, in Vector3 normal, CollidableReference collidable, int childIndex);
+        void OnRayHit(in RayData ray, ref float maximumT, float t, Vector3 normal, CollidableReference collidable, int childIndex);
     }
 
     /// <summary>
@@ -85,7 +83,7 @@ namespace BepuPhysics
         /// <param name="hitLocation">Location of the first hit detected by the sweep.</param>
         /// <param name="hitNormal">Surface normal at the hit location.</param>
         /// <param name="collidable">Collidable hit by the traversal.</param>
-        void OnHit(ref float maximumT, float t, in Vector3 hitLocation, in Vector3 hitNormal, CollidableReference collidable);
+        void OnHit(ref float maximumT, float t, Vector3 hitLocation, Vector3 hitNormal, CollidableReference collidable);
         /// <summary>
         /// Called when a sweep test detects a hit at T = 0, meaning that no location or normal can be computed.
         /// </summary>
@@ -109,7 +107,7 @@ namespace BepuPhysics
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void OnRayHit(in RayData ray, ref float maximumT, float t, in Vector3 normal, int childIndex)
+            public void OnRayHit(in RayData ray, ref float maximumT, float t, Vector3 normal, int childIndex)
             {
                 HitHandler.OnRayHit(ray, ref maximumT, t, normal, Collidable, childIndex);
             }
@@ -130,7 +128,7 @@ namespace BepuPhysics
             {
                 ref var location = ref Bodies.HandleToLocation[reference.BodyHandle.Value];
                 ref var set = ref Bodies.Sets[location.SetIndex];
-                pose = &(set.SolverStates.Memory + location.Index)->Motion.Pose;
+                pose = &(set.DynamicsState.Memory + location.Index)->Motion.Pose;
                 shape = set.Collidables[location.Index].Shape;
             }
         }
@@ -160,7 +158,7 @@ namespace BepuPhysics
         /// <param name="maximumT">Maximum length of the ray traversal in units of the direction's length.</param>
         /// <param name="hitHandler">callbacks to execute on ray-object intersections.</param>
         /// <param name="id">User specified id of the ray.</param>
-        public unsafe void RayCast<THitHandler>(in Vector3 origin, in Vector3 direction, float maximumT, ref THitHandler hitHandler, int id = 0) where THitHandler : IRayHitHandler
+        public void RayCast<THitHandler>(Vector3 origin, Vector3 direction, float maximumT, ref THitHandler hitHandler, int id = 0) where THitHandler : IRayHitHandler
         {
             RayHitDispatcher<THitHandler> dispatcher;
             dispatcher.ShapeHitHandler.HitHandler = hitHandler;
@@ -193,7 +191,7 @@ namespace BepuPhysics
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public unsafe void Test(CollidableReference reference, ref float maximumT)
+            public void Test(CollidableReference reference, ref float maximumT)
             {
                 if (HitHandler.AllowTest(reference))
                 {
@@ -277,7 +275,7 @@ namespace BepuPhysics
             dispatcher.Velocity = velocity;
             //Note that the shape was passed by copy, and that all shape types are required to be blittable. No GC hole.
             dispatcher.ShapeData = &shape;
-            dispatcher.ShapeType = shape.TypeId;
+            dispatcher.ShapeType = TShape.TypeId;
             dispatcher.Simulation = this;
             dispatcher.Pool = pool;
             dispatcher.CollidableBeingTested = default;
@@ -301,7 +299,7 @@ namespace BepuPhysics
         /// <param name="pool">Pool to allocate any temporary resources in during execution.</param>
         /// <param name="hitHandler">Callbacks executed when a sweep impacts an object in the scene.</param>
         /// <remarks>Simulation objects are treated as stationary during the sweep.</remarks>
-        public unsafe void Sweep<TShape, TSweepHitHandler>(in TShape shape, in RigidPose pose, in BodyVelocity velocity, float maximumT, BufferPool pool, ref TSweepHitHandler hitHandler)
+        public void Sweep<TShape, TSweepHitHandler>(in TShape shape, in RigidPose pose, in BodyVelocity velocity, float maximumT, BufferPool pool, ref TSweepHitHandler hitHandler)
             where TShape : unmanaged, IConvexShape where TSweepHitHandler : ISweepHitHandler
         {
             //Estimate some reasonable termination conditions for iterative sweeps based on the input shape size.

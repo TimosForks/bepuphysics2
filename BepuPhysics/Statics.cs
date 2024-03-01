@@ -2,9 +2,7 @@
 using BepuUtilities.Memory;
 using System;
 using System.Diagnostics;
-using System.Numerics;
 using System.Runtime.CompilerServices;
-using BepuPhysics.Constraints;
 using BepuPhysics.Collidables;
 using BepuUtilities.Collections;
 using BepuPhysics.CollisionDetection;
@@ -152,7 +150,7 @@ namespace BepuPhysics
             }
         }
 
-        public unsafe Statics(BufferPool pool, Shapes shapes, Bodies bodies, BroadPhase broadPhase, int initialCapacity = 4096)
+        public Statics(BufferPool pool, Shapes shapes, Bodies bodies, BroadPhase broadPhase, int initialCapacity = 4096)
         {
             this.pool = pool;
             InternalResize(Math.Max(1, initialCapacity));
@@ -229,7 +227,7 @@ namespace BepuPhysics
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool LoopBody(int leafIndex)
             {
-                ref var leaf = ref broadPhase.staticLeaves[leafIndex];
+                ref var leaf = ref broadPhase.StaticLeaves[leafIndex];
                 if (leaf.Mobility != CollidableMobility.Static)
                 {
                     if (Filter.ShouldAwaken(bodies[leaf.BodyHandle]))
@@ -359,7 +357,7 @@ namespace BepuPhysics
         {
             var index = HandleToIndex[handle.Value];
             ref var collidable = ref this[index];
-            shapes.UpdateBounds(collidable.Pose, ref collidable.Shape, out var bodyBounds);
+            shapes.UpdateBounds(collidable.Pose, collidable.Shape, out var bodyBounds);
             broadPhase.UpdateStaticBounds(collidable.BroadPhaseIndex, bodyBounds.Min, bodyBounds.Max);
         }
 
@@ -458,7 +456,7 @@ namespace BepuPhysics
         /// <param name="description">Description to apply to the static.</param>
         /// <param name="filter">Filter to apply to sleeping bodies near the static to see if they should be awoken.</param>
         /// <typeparam name="TAwakeningFilter">Type of the filter to apply to sleeping bodies.</typeparam>
-        public unsafe void ApplyDescription<TAwakeningFilter>(StaticHandle handle, in StaticDescription description, ref TAwakeningFilter filter) where TAwakeningFilter : struct, IStaticChangeAwakeningFilter
+        public void ApplyDescription<TAwakeningFilter>(StaticHandle handle, in StaticDescription description, ref TAwakeningFilter filter) where TAwakeningFilter : struct, IStaticChangeAwakeningFilter
         {
             ValidateExistingHandle(handle);
             var index = HandleToIndex[handle.Value];
@@ -477,7 +475,7 @@ namespace BepuPhysics
         /// </summary>
         /// <param name="handle">Handle of the static to apply the description to.</param>
         /// <param name="description">Description to apply to the static.</param>
-        public unsafe void ApplyDescription(StaticHandle handle, in StaticDescription description)
+        public void ApplyDescription(StaticHandle handle, in StaticDescription description)
         {
             var defaultFilter = default(StaticsShouldntAwakenKinematics);
             ApplyDescription(handle, description, ref defaultFilter);
@@ -496,6 +494,17 @@ namespace BepuPhysics
             description.Pose = collidable.Pose;
             description.Continuity = collidable.Continuity;
             description.Shape = collidable.Shape;
+        }
+
+        /// <summary>
+        /// Gets the current description of the static referred to by a given handle.
+        /// </summary>
+        /// <param name="handle">Handle of the static to look up the description of.</param>
+        /// <returns>Gathered description of the handle-referenced static.</returns>
+        public StaticDescription GetDescription(StaticHandle handle)
+        {
+            GetDescription(handle, out var description);
+            return description;
         }
 
         /// <summary>

@@ -54,7 +54,7 @@ namespace BepuPhysics.CollisionDetection
         public BatcherContinuations<MeshReduction> MeshReductions;
         public BatcherContinuations<CompoundMeshReduction> CompoundMeshReductions;
 
-        public unsafe CollisionBatcher(BufferPool pool, Shapes shapes, CollisionTaskRegistry collisionTypeMatrix, float dt, TCallbacks callbacks)
+        public CollisionBatcher(BufferPool pool, Shapes shapes, CollisionTaskRegistry collisionTypeMatrix, float dt, TCallbacks callbacks)
         {
             Pool = pool;
             Shapes = shapes;
@@ -72,7 +72,7 @@ namespace BepuPhysics.CollisionDetection
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        unsafe ref TPair AllocatePair<TPair>(ref CollisionBatch batch, ref CollisionTaskReference reference) where TPair : ICollisionPair<TPair>
+        ref TPair AllocatePair<TPair>(ref CollisionBatch batch, ref CollisionTaskReference reference) where TPair : ICollisionPair<TPair>
         {
             if (!batch.Pairs.Buffer.Allocated)
             {
@@ -86,7 +86,7 @@ namespace BepuPhysics.CollisionDetection
         }
 
         private unsafe void Add(ref CollisionTaskReference reference, int flipMask, int shapeTypeA, int shapeTypeB, void* shapeA, void* shapeB,
-            in Vector3 offsetB, in Quaternion orientationA, in Quaternion orientationB, in BodyVelocity velocityA, in BodyVelocity velocityB, float speculativeMargin, float maximumExpansion,
+            Vector3 offsetB, Quaternion orientationA, Quaternion orientationB, in BodyVelocity velocityA, in BodyVelocity velocityB, float speculativeMargin, float maximumExpansion,
             in PairContinuation continuation)
         {
             ref var batch = ref batches[reference.TaskIndex];
@@ -173,7 +173,7 @@ namespace BepuPhysics.CollisionDetection
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         unsafe void AddDirectly(
             ref CollisionTaskReference reference, int shapeTypeA, int shapeTypeB, void* shapeA, void* shapeB,
-            in Vector3 offsetB, in Quaternion orientationA, in Quaternion orientationB, in BodyVelocity velocityA, in BodyVelocity velocityB, float speculativeMargin, float maximumExpansion,
+            Vector3 offsetB, Quaternion orientationA, Quaternion orientationB, in BodyVelocity velocityA, in BodyVelocity velocityB, float speculativeMargin, float maximumExpansion,
             in PairContinuation pairContinuation)
         {
             if (reference.TaskIndex < 0)
@@ -197,7 +197,7 @@ namespace BepuPhysics.CollisionDetection
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe void AddDirectly(
            int shapeTypeA, int shapeTypeB, void* shapeA, void* shapeB,
-           in Vector3 offsetB, in Quaternion orientationA, in Quaternion orientationB, in BodyVelocity velocityA, in BodyVelocity velocityB, float speculativeMargin, float maximumExpansion,
+           Vector3 offsetB, Quaternion orientationA, Quaternion orientationB, in BodyVelocity velocityA, in BodyVelocity velocityB, float speculativeMargin, float maximumExpansion,
            in PairContinuation pairContinuation)
         {
             ref var reference = ref typeMatrix.GetTaskReference(shapeTypeA, shapeTypeB);
@@ -206,7 +206,7 @@ namespace BepuPhysics.CollisionDetection
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe void AddDirectly(int shapeTypeA, int shapeTypeB, void* shapeA, void* shapeB,
-            in Vector3 offsetB, in Quaternion orientationA, in Quaternion orientationB, float speculativeMargin, in PairContinuation pairContinuation)
+            Vector3 offsetB, Quaternion orientationA, Quaternion orientationB, float speculativeMargin, in PairContinuation pairContinuation)
         {
             AddDirectly(shapeTypeA, shapeTypeB, shapeA, shapeB, offsetB, orientationA, orientationB, default, default, speculativeMargin, default, pairContinuation);
         }
@@ -214,7 +214,7 @@ namespace BepuPhysics.CollisionDetection
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe void Add(TypedIndex shapeIndexA, TypedIndex shapeIndexB,
-            in Vector3 offsetB, in Quaternion orientationA, in Quaternion orientationB, in BodyVelocity velocityA, in BodyVelocity velocityB,
+            Vector3 offsetB, Quaternion orientationA, Quaternion orientationB, in BodyVelocity velocityA, in BodyVelocity velocityB,
             float speculativeMargin, float maximumExpansion,
             in PairContinuation continuation)
         {
@@ -226,7 +226,7 @@ namespace BepuPhysics.CollisionDetection
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void Add(TypedIndex shapeIndexA, TypedIndex shapeIndexB, in Vector3 offsetB, in Quaternion orientationA, in Quaternion orientationB,
+        public void Add(TypedIndex shapeIndexA, TypedIndex shapeIndexB, Vector3 offsetB, Quaternion orientationA, Quaternion orientationB,
             float speculativeMargin, in PairContinuation continuation)
         {
             Add(shapeIndexA, shapeIndexB, offsetB, orientationA, orientationB, default, default, speculativeMargin, default, continuation);
@@ -267,24 +267,27 @@ namespace BepuPhysics.CollisionDetection
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe void Add(
-           int shapeTypeA, int shapeTypeB, int shapeSizeA, int shapeSizeB, void* shapeA, void* shapeB, in Vector3 offsetB, in Quaternion orientationA, in Quaternion orientationB, float speculativeMargin, int pairId)
+           int shapeTypeA, int shapeTypeB, int shapeSizeA, int shapeSizeB, void* shapeA, void* shapeB, Vector3 offsetB, Quaternion orientationA, Quaternion orientationB, float speculativeMargin, int pairId)
         {
             ref var reference = ref typeMatrix.GetTaskReference(shapeTypeA, shapeTypeB);
             CacheShapes(ref reference, shapeA, shapeB, shapeSizeA, shapeSizeB, out var cachedShapeA, out var cachedShapeB);
             AddDirectly(ref reference, shapeTypeA, shapeTypeB, cachedShapeA, cachedShapeB, offsetB, orientationA, orientationB, default, default, speculativeMargin, default, new PairContinuation(pairId));
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void Add<TShapeA, TShapeB>(TShapeA shapeA, TShapeB shapeB, in Vector3 offsetB, in Quaternion orientationA, in Quaternion orientationB, float speculativeMargin, int pairId)
+        public unsafe void Add<TShapeA, TShapeB>(TShapeA shapeA, TShapeB shapeB, Vector3 offsetB, Quaternion orientationA, Quaternion orientationB, float speculativeMargin, int pairId)
             where TShapeA : struct, IShape where TShapeB : struct, IShape
         {
             //Note that the shapes are passed by copy to avoid a GC hole. This isn't optimal, but it does allow a single code path, and the underlying function is the one
             //that's actually used by the narrowphase (and which will likely be used for most performance sensitive cases).
             //TODO: You could recover the performance and safety once generic pointers exist. By having pointers in the parameter list, we can require that the user handle GC safety.
             //(We could also have an explicit 'unsafe' overload, but that API complexity doesn't seem worthwhile. My guess is nontrivial uses will all use the underlying function directly.)
-            Add(shapeA.TypeId, shapeB.TypeId, Unsafe.SizeOf<TShapeA>(), Unsafe.SizeOf<TShapeB>(), Unsafe.AsPointer(ref shapeA), Unsafe.AsPointer(ref shapeB),
+            Add(TShapeA.TypeId, TShapeB.TypeId, Unsafe.SizeOf<TShapeA>(), Unsafe.SizeOf<TShapeB>(), Unsafe.AsPointer(ref shapeA), Unsafe.AsPointer(ref shapeB),
                 offsetB, orientationA, orientationB, speculativeMargin, pairId);
         }
 
+        /// <summary>
+        /// Forces any remaining partial batches to execute and disposes the batcher.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Flush()
         {
@@ -297,7 +300,16 @@ namespace BepuPhysics.CollisionDetection
                 {
                     typeMatrix.tasks[i].ExecuteBatch(ref batch.Pairs, ref this);
                 }
-                //Dispose of the batch and any associated buffers; since the flush is one pass, we won't be needing this again.
+            }
+            for (int i = minimumBatchIndex; i <= maximumBatchIndex; ++i)
+            {
+                //Disposal is deferred until execution is complete.
+                //Shape data could be cached in an early buffer by a task that generates child tasks.
+                //Those child tasks could refer to data cached in the parent task's shapes buffer.
+                //Deleting it would potentially explode things.
+                //(While internal uses of the collision batcher generally refer to the Simulation.Shapes collection,
+                //the collision batcher is not limited to that use case. Consider contact queries with ephemeral shapes.)
+                ref var batch = ref batches[i];
                 if (batch.Pairs.Buffer.Allocated)
                 {
                     Pool.Return(ref batch.Pairs.Buffer);
@@ -313,7 +325,13 @@ namespace BepuPhysics.CollisionDetection
             CompoundMeshReductions.Dispose(Pool);
         }
 
-        public unsafe void ProcessConvexResult(ref ConvexContactManifold manifold, ref PairContinuation continuation)
+        /// <summary>
+        /// Reports the result of a convex collision test to the callbacks and, if necessary, to any continuations for postprocessing.
+        /// </summary>
+        /// <remarks>Unless you're building custom compound collision pairs or adding new contact processing continuations, you can safely ignore this.</remarks>
+        /// <param name="manifold">Contacts detected for the pair.</param>
+        /// <param name="continuation">Continuation describing the pair and what to do with it.</param>
+        public void ProcessConvexResult(ref ConvexContactManifold manifold, ref PairContinuation continuation)
         {
 #if DEBUG
             if (manifold.Count > 0)
@@ -352,5 +370,49 @@ namespace BepuPhysics.CollisionDetection
 
             }
         }
+
+        /// <summary>
+        /// Reports the zero result of a convex collision test to the callbacks and, if necessary, to any continuations for postprocessing.
+        /// </summary>
+        /// <remarks>Unless you're building custom compound collision pairs or adding new contact processing continuations, you can safely ignore this.</remarks>
+        /// <param name="continuation">Continuation describing the pair and what to do with it.</param>
+        public void ProcessEmptyResult(ref PairContinuation continuation)
+        {
+            Unsafe.SkipInit(out ConvexContactManifold manifold);
+            manifold.Count = 0;
+            ProcessConvexResult(ref manifold, ref continuation);
+        }
+
+
+        /// <summary>
+        /// Submits a subpair whose testing was blocked by user callback as complete to any relevant continuations.
+        /// </summary>
+        /// <remarks>Unless you're building custom compound collision pairs or adding new contact processing continuations, you can safely ignore this.</remarks>
+        /// <param name="continuation">Continuation describing the pair and what to do with it.</param>
+        public void ProcessUntestedSubpairConvexResult(ref PairContinuation continuation)
+        {
+            //Note that we do not call OnChildPairCompleted. A callback is only invoked if a child is actually tested. 
+            //If a child isn't considered- because acceleration structure pruned it, or a callback said to ignore it- there is no callback report.
+            //That's different from the top level pair which should always report.
+            switch (continuation.Type)
+            {
+                case CollisionContinuationType.NonconvexReduction:
+                    {
+                        NonconvexReductions.ContributeUntestedChildToContinuation(ref continuation, ref this);
+                    }
+                    break;
+                case CollisionContinuationType.MeshReduction:
+                    {
+                        MeshReductions.ContributeUntestedChildToContinuation(ref continuation, ref this);
+                    }
+                    break;
+                case CollisionContinuationType.CompoundMeshReduction:
+                    {
+                        CompoundMeshReductions.ContributeUntestedChildToContinuation(ref continuation, ref this);
+                    }
+                    break;
+            }
+        }
+
     }
 }

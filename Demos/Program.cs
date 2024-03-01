@@ -17,6 +17,7 @@ namespace Demos
             {
                 content = ContentArchive.Load(stream);
             }
+            //HeadlessTest.Test<ShapePileTestDemo>(content, 4, 32, 512);
             var demo = new DemoHarness(loop, content);
             loop.Run(demo);
             loop.Dispose();

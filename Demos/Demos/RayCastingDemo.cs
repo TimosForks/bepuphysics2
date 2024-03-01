@@ -16,14 +16,13 @@ using DemoRenderer.Constraints;
 using System.Threading;
 using Demos.SpecializedTests;
 using DemoContentLoader;
-using Demos.Demos;
 using Helpers = DemoRenderer.Helpers;
 
 namespace Demos
 {
     public class RayCastingDemo : Demo
     {
-        public unsafe struct NoCollisionCallbacks : INarrowPhaseCallbacks
+        public struct NoCollisionCallbacks : INarrowPhaseCallbacks
         {
             public void Initialize(Simulation simulation)
             {
@@ -42,7 +41,7 @@ namespace Demos
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public unsafe bool ConfigureContactManifold<TManifold>(int workerIndex, CollidablePair pair, ref TManifold manifold, out PairMaterialProperties pairMaterial) where TManifold : unmanaged, IContactManifold<TManifold>
+            public bool ConfigureContactManifold<TManifold>(int workerIndex, CollidablePair pair, ref TManifold manifold, out PairMaterialProperties pairMaterial) where TManifold : unmanaged, IContactManifold<TManifold>
             {
                 pairMaterial = new PairMaterialProperties();
                 return false;
@@ -58,14 +57,14 @@ namespace Demos
             {
             }
         }
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(-20f, 13, -20f);
             camera.Yaw = MathHelper.Pi * 3f / 4;
             camera.Pitch = MathHelper.Pi * 0.1f;
             Simulation = Simulation.Create(BufferPool, new NoCollisionCallbacks(), new DemoPoseIntegratorCallbacks(new Vector3(0, -10, 0)), new SolveDescription(8, 1));
 
-           
+
 
             var sphere = new Sphere(0.5f);
             var capsule = new Capsule(0, 0.5f);
@@ -129,11 +128,11 @@ namespace Demos
 
             const int planeWidth = 128;
             const int planeHeight = 128;
-            DemoMeshHelper.CreateDeformedPlane(planeWidth, planeHeight,
+            var planeMesh = DemoMeshHelper.CreateDeformedPlane(planeWidth, planeHeight,
                 (int x, int y) =>
                 {
                     return new Vector3(x - planeWidth / 2, 1 * MathF.Cos(x / 4f) * MathF.Sin(y / 4f), y - planeHeight / 2);
-                }, new Vector3(1, 3, 1), BufferPool, out var planeMesh);
+                }, new Vector3(1, 3, 1), BufferPool);
             Simulation.Statics.Add(new StaticDescription(
                 new Vector3(0, -10, 0), QuaternionEx.CreateFromAxisAngle(new Vector3(0, 1, 0), MathF.PI / 4),
                 Simulation.Shapes.Add(planeMesh)));
@@ -242,7 +241,7 @@ namespace Demos
             public CollidableReference Collidable;
             public bool Hit;
         }
-        class IntersectionAlgorithm
+        unsafe class IntersectionAlgorithm
         {
             public string Name;
             public int IntersectionCount;
@@ -299,7 +298,7 @@ namespace Demos
         {
             int intersectionCount = 0;
             var hitHandler = new HitHandler { Hits = algorithm.Results, IntersectionCount = &intersectionCount };
-            var batcher = new SimulationRayBatcher<HitHandler>(ThreadDispatcher.GetThreadMemoryPool(workerIndex), Simulation, hitHandler, 2048);
+            var batcher = new SimulationRayBatcher<HitHandler>(ThreadDispatcher.WorkerPools[workerIndex], Simulation, hitHandler, 2048);
             int claimedIndex;
             while ((claimedIndex = Interlocked.Increment(ref algorithm.JobIndex)) < jobs.Length)
             {
@@ -359,7 +358,7 @@ namespace Demos
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void OnRayHit(in RayData ray, ref float maximumT, float t, in Vector3 normal, CollidableReference collidable, int childIndex)
+            public void OnRayHit(in RayData ray, ref float maximumT, float t, Vector3 normal, CollidableReference collidable, int childIndex)
             {
                 maximumT = t;
                 ref var hit = ref Hits[ray.Id];
@@ -396,7 +395,7 @@ namespace Demos
             }
         }
 
-        public unsafe override void Update(Window window, Camera camera, Input input, float dt)
+        public override void Update(Window window, Camera camera, Input input, float dt)
         {
             base.Update(window, camera, input, dt);
 

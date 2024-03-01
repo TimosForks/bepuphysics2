@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace BepuUtilities.Collections
 {
@@ -155,9 +151,7 @@ namespace BepuUtilities.Collections
             const int mask = bucketCount - 1;
             //This stackalloc isn't actually super fast- the default behavior is to zero out the range. But we actually want it to be zeroed, so that's okay.
             var bucketCounts = stackalloc int[bucketCount];
-#if RELEASESTRIP
             Unsafe.InitBlockUnaligned(bucketCounts, 0, sizeof(int) * bucketCount);
-#endif
 #if DEBUG
             for (int i = 0; i < bucketCount; ++i)
             {

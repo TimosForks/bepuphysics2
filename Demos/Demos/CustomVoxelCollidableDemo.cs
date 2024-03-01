@@ -26,7 +26,7 @@ namespace Demos.Demos
     struct Voxels : IHomogeneousCompoundShape<Box, BoxWide>
     {
         //Type ids should be unique across all shape types in a simulation.
-        public readonly int TypeId => 12;
+        public static int TypeId => 12;
 
         //Using an object space tree isn't necessarily ideal for a highly regular data like voxels.
         //We're using it here since it exists already and a voxel-specialized version doesn't.
@@ -70,7 +70,7 @@ namespace Demos.Demos
             pool.Return(ref bounds);
         }
 
-        public readonly ShapeBatch CreateShapeBatch(BufferPool pool, int initialCapacity, Shapes shapeBatches)
+        public static ShapeBatch CreateShapeBatch(BufferPool pool, int initialCapacity, Shapes shapeBatches)
         {
             //Shapes types are responsible for informing the shape system how to create a batch for them.
             //Convex shapes will return a ConvexShapeBatch<TShape>, compound shapes a CompoundShapeBatch<TShape>,
@@ -80,7 +80,7 @@ namespace Demos.Demos
             return new HomogeneousCompoundShapeBatch<Voxels, Box, BoxWide>(pool, initialCapacity);
         }
 
-        public readonly void ComputeBounds(in Quaternion orientation, out Vector3 min, out Vector3 max)
+        public readonly void ComputeBounds(Quaternion orientation, out Vector3 min, out Vector3 max)
         {
             Matrix3x3.CreateFromQuaternion(orientation, out var basis);
             min = new Vector3(float.MaxValue);
@@ -109,7 +109,7 @@ namespace Demos.Demos
             public RayData OriginalRay;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public unsafe void TestLeaf(int leafIndex, RayData* ray, float* maximumT)
+            public void TestLeaf(int leafIndex, RayData* ray, float* maximumT)
             {
                 ref var voxelIndex = ref VoxelIndices[leafIndex];
                 //Note that you could make use of the voxel grid's regular structure to save some work dealing with orientations.
@@ -131,7 +131,7 @@ namespace Demos.Demos
         /// <param name="ray">Ray to test against the voxels.</param>
         /// <param name="maximumT">Maximum length of the ray in units of the ray direction length.</param>
         /// <param name="hitHandler">Callback to execute for every hit.</param>
-        public readonly unsafe void RayTest<TRayHitHandler>(in RigidPose pose, in RayData ray, ref float maximumT, ref TRayHitHandler hitHandler) where TRayHitHandler : struct, IShapeRayHitHandler
+        public readonly void RayTest<TRayHitHandler>(in RigidPose pose, in RayData ray, ref float maximumT, ref TRayHitHandler hitHandler) where TRayHitHandler : struct, IShapeRayHitHandler
         {
             HitLeafTester<TRayHitHandler> leafTester;
             leafTester.VoxelIndices = VoxelIndices;
@@ -226,7 +226,7 @@ namespace Demos.Demos
             }
         }
 
-        public readonly unsafe void FindLocalOverlaps<TOverlaps>(in Vector3 min, in Vector3 max, in Vector3 sweep, float maximumT, BufferPool pool, Shapes shapes, void* overlaps) where TOverlaps : ICollisionTaskSubpairOverlaps
+        public readonly unsafe void FindLocalOverlaps<TOverlaps>(Vector3 min, Vector3 max, Vector3 sweep, float maximumT, BufferPool pool, Shapes shapes, void* overlaps) where TOverlaps : ICollisionTaskSubpairOverlaps
         {
             //Similar to the non-swept FindLocalOverlaps function above, this just adds the overlaps to the provided collection.
             //Some unfortunate loss of type information due to some language limitations around generic pointers- pretend the overlaps pointer has type TOverlaps*.
@@ -327,19 +327,19 @@ namespace Demos.Demos
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void GetChildAData<TCallbacks>(ref CollisionBatcher<TCallbacks> collisionBatcher, ref NonconvexReduction continuation, in BoundsTestedPair pair, int childIndexA,
+        public void GetChildAData<TCallbacks>(ref CollisionBatcher<TCallbacks> collisionBatcher, ref NonconvexReduction continuation, in BoundsTestedPair pair, int childIndexA,
             out RigidPose childPoseA, out int childTypeA, out void* childShapeDataA)
             where TCallbacks : struct, ICollisionCallbacks
         {
             ref var compoundA = ref Unsafe.AsRef<TCompoundA>(pair.A);
             ref var compoundChildA = ref compoundA.GetChild(childIndexA);
-            Compound.GetRotatedChildPose(compoundChildA.LocalPose, pair.OrientationA, out childPoseA);
+            Compound.GetRotatedChildPose(CompoundChild.AsPose(ref compoundChildA), pair.OrientationA, out childPoseA);
             childTypeA = compoundChildA.ShapeIndex.Type;
             collisionBatcher.Shapes[childTypeA].GetShapeData(compoundChildA.ShapeIndex.Index, out childShapeDataA, out _);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void ConfigureContinuationChild<TCallbacks>(
+        public void ConfigureContinuationChild<TCallbacks>(
             ref CollisionBatcher<TCallbacks> collisionBatcher, ref NonconvexReduction continuation, int continuationChildIndex, in BoundsTestedPair pair, int childIndexA, int childTypeA, int childIndexB, in RigidPose childPoseA,
             out RigidPose childPoseB, out int childTypeB, out void* childShapeDataB)
             where TCallbacks : struct, ICollisionCallbacks
@@ -369,7 +369,7 @@ namespace Demos.Demos
     {
         Voxels voxels;
         StaticHandle handle;
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(-40, 40, -40);
             camera.Yaw = MathHelper.Pi * 3f / 4;

@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text;
 using BepuUtilities.Memory;
-using System.Diagnostics;
 using BepuUtilities;
 using BepuPhysics.Trees;
 using BepuPhysics.CollisionDetection;
@@ -51,12 +48,12 @@ namespace BepuPhysics.Collidables
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public readonly void ComputeBounds(in Quaternion orientation, out Vector3 min, out Vector3 max)
+        public readonly void ComputeBounds(Quaternion orientation, out Vector3 min, out Vector3 max)
         {
             min = new Vector3(-Radius);
             max = new Vector3(Radius);
         }
-        public readonly bool RayTest(in RigidPose pose, in Vector3 origin, in Vector3 direction, out float t, out Vector3 normal)
+        public readonly bool RayTest(in RigidPose pose, Vector3 origin, Vector3 direction, out float t, out Vector3 normal)
         {
             //Normalize the direction. Sqrts aren't *that* bad, and it both simplifies things and helps avoid numerical problems.
             var inverseDLength = 1f / direction.Length();
@@ -108,7 +105,7 @@ namespace BepuPhysics.Collidables
             return inertia;
         }
 
-        public readonly ShapeBatch CreateShapeBatch(BufferPool pool, int initialCapacity, Shapes shapes)
+        public static ShapeBatch CreateShapeBatch(BufferPool pool, int initialCapacity, Shapes shapes)
         {
             return new ConvexShapeBatch<Sphere, SphereWide>(pool, initialCapacity);
         }
@@ -118,7 +115,7 @@ namespace BepuPhysics.Collidables
         /// Type id of sphere shapes.
         /// </summary>
         public const int Id = 0;
-        public readonly int TypeId { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return Id; } }
+        public static int TypeId { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return Id; } }
     }
 
     public struct SphereWide : IShapeWide<Sphere>
@@ -163,7 +160,7 @@ namespace BepuPhysics.Collidables
         }
 
 
-        public int MinimumWideRayCount
+        public static int MinimumWideRayCount
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get

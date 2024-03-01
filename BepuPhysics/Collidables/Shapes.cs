@@ -1,5 +1,4 @@
-﻿using BepuUtilities.Collections;
-using BepuUtilities.Memory;
+﻿using BepuUtilities.Memory;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System;
@@ -54,13 +53,27 @@ namespace BepuPhysics.Collidables
         }
 
         public abstract void ComputeBounds(ref BoundingBoxBatcher batcher);
-        public abstract void ComputeBounds(int shapeIndex, in RigidPose pose, out Vector3 min, out Vector3 max);
-        internal virtual void ComputeBounds(int shapeIndex, in Quaternion orientation, out float maximumRadius, out float maximumAngularExpansion, out Vector3 min, out Vector3 max)
+        public abstract void ComputeBounds(int shapeIndex, Quaternion orientation, out Vector3 min, out Vector3 max);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ComputeBounds(int shapeIndex, Vector3 position, Quaternion orientation, out Vector3 min, out Vector3 max)
+        {
+            ComputeBounds(shapeIndex, orientation, out min, out max);
+            min += position;
+            max += position;
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ComputeBounds(int shapeIndex, RigidPose pose, out Vector3 min, out Vector3 max)
+        {
+            ComputeBounds(shapeIndex, pose.Orientation, out min, out max);
+            min += pose.Position;
+            max += pose.Position;
+        }
+        internal virtual void ComputeBounds(int shapeIndex, Quaternion orientation, out float maximumRadius, out float maximumAngularExpansion, out Vector3 min, out Vector3 max)
         {
             throw new InvalidOperationException("Nonconvex shapes are not required to have a maximum radius or angular expansion implementation. This should only ever be called on convexes.");
         }
         public abstract void RayTest<TRayHitHandler>(int shapeIndex, in RigidPose pose, in RayData ray, ref float maximumT, ref TRayHitHandler hitHandler) where TRayHitHandler : struct, IShapeRayHitHandler;
-        public abstract void RayTest<TRayHitHandler>(int shapeIndex, in RigidPose rigidPose, ref RaySource rays, ref TRayHitHandler hitHandler) where TRayHitHandler : struct, IShapeRayHitHandler;
+        public abstract void RayTest<TRayHitHandler>(int shapeIndex, in RigidPose pose, ref RaySource rays, ref TRayHitHandler hitHandler) where TRayHitHandler : struct, IShapeRayHitHandler;
 
         /// <summary>
         /// Gets a raw untyped pointer to a shape's data.
@@ -122,7 +135,7 @@ namespace BepuPhysics.Collidables
         protected ShapeBatch(BufferPool pool, int initialShapeCount)
         {
             this.pool = pool;
-            TypeId = default(TShape).TypeId;
+            TypeId = TShape.TypeId;
             InternalResize(initialShapeCount, 0);
             idPool = new IdPool(initialShapeCount, pool);
         }
@@ -197,8 +210,23 @@ namespace BepuPhysics.Collidables
         }
     }
 
+    /// <summary>
+    /// Defines a shape batch containing convex objects that support simple inertia calculations.
+    /// </summary>
+    /// <remarks>This interface gives compounds a way to compute inertia despite not having direct typed access to the child shapes.
+    /// It's a layer of overhead that can usually be avoided, but it's sometimes convenient to be able to just enumerate child inertias.</remarks>
+    public interface IConvexShapeBatch
+    {
+        /// <summary>
+        /// Computes the inertia of a shape.
+        /// </summary>
+        /// <param name="shapeIndex">Index of the shape to compute the inertia of.</param>
+        /// <param name="mass">Mass to use to compute the inertia.</param>
+        /// <returns>Inertia of the shape.</returns>
+        BodyInertia ComputeInertia(int shapeIndex, float mass);
+    }
 
-    public class ConvexShapeBatch<TShape, TShapeWide> : ShapeBatch<TShape>
+    public class ConvexShapeBatch<TShape, TShapeWide> : ShapeBatch<TShape>, IConvexShapeBatch
         where TShape : unmanaged, IConvexShape
         where TShapeWide : unmanaged, IShapeWide<TShape>
     {
@@ -216,19 +244,22 @@ namespace BepuPhysics.Collidables
             //And they don't have any children.
         }
 
+        public BodyInertia ComputeInertia(int shapeIndex, float mass)
+        {
+            return shapes[shapeIndex].ComputeInertia(mass);
+        }
+
         public override void ComputeBounds(ref BoundingBoxBatcher batcher)
         {
             batcher.ExecuteConvexBatch(this);
         }
 
-        public override void ComputeBounds(int shapeIndex, in RigidPose pose, out Vector3 min, out Vector3 max)
+        public override void ComputeBounds(int shapeIndex, Quaternion orientation, out Vector3 min, out Vector3 max)
         {
-            shapes[shapeIndex].ComputeBounds(pose.Orientation, out min, out max);
-            min += pose.Position;
-            max += pose.Position;
+            shapes[shapeIndex].ComputeBounds(orientation, out min, out max);
         }
 
-        internal override void ComputeBounds(int shapeIndex, in Quaternion orientation, out float maximumRadius, out float angularExpansion, out Vector3 min, out Vector3 max)
+        internal override void ComputeBounds(int shapeIndex, Quaternion orientation, out float maximumRadius, out float angularExpansion, out Vector3 min, out Vector3 max)
         {
             ref var shape = ref shapes[shapeIndex];
             shape.ComputeBounds(orientation, out min, out max);
@@ -243,7 +274,7 @@ namespace BepuPhysics.Collidables
             }
         }
 
-        public unsafe override void RayTest<TRayHitHandler>(int index, in RigidPose pose, ref RaySource rays, ref TRayHitHandler hitHandler)
+        public override void RayTest<TRayHitHandler>(int index, in RigidPose pose, ref RaySource rays, ref TRayHitHandler hitHandler)
         {
             WideRayTester.Test<RaySource, TShape, TShapeWide, TRayHitHandler>(ref shapes[index], pose, ref rays, ref hitHandler);
         }
@@ -263,8 +294,8 @@ namespace BepuPhysics.Collidables
 
 
     public class HomogeneousCompoundShapeBatch<TShape, TChildShape, TChildShapeWide> : ShapeBatch<TShape> where TShape : unmanaged, IHomogeneousCompoundShape<TChildShape, TChildShapeWide>
-        where TChildShape : IConvexShape
-        where TChildShapeWide : IShapeWide<TChildShape>
+        where TChildShape : unmanaged, IConvexShape
+        where TChildShapeWide : unmanaged, IShapeWide<TChildShape>
     {
         public HomogeneousCompoundShapeBatch(BufferPool pool, int initialShapeCount) : base(pool, initialShapeCount)
         {
@@ -286,11 +317,9 @@ namespace BepuPhysics.Collidables
             batcher.ExecuteHomogeneousCompoundBatch(this);
         }
 
-        public override void ComputeBounds(int shapeIndex, in RigidPose pose, out Vector3 min, out Vector3 max)
+        public override void ComputeBounds(int shapeIndex, Quaternion orientation, out Vector3 min, out Vector3 max)
         {
-            shapes[shapeIndex].ComputeBounds(pose.Orientation, out min, out max);
-            min += pose.Position;
-            max += pose.Position;
+            shapes[shapeIndex].ComputeBounds(orientation, out min, out max);
         }
         public override void RayTest<TRayHitHandler>(int shapeIndex, in RigidPose pose, in RayData ray, ref float maximumT, ref TRayHitHandler hitHandler)
         {
@@ -333,11 +362,9 @@ namespace BepuPhysics.Collidables
             batcher.ExecuteCompoundBatch(this);
         }
 
-        public override void ComputeBounds(int shapeIndex, in RigidPose pose, out Vector3 min, out Vector3 max)
+        public override void ComputeBounds(int shapeIndex, Quaternion orientation, out Vector3 min, out Vector3 max)
         {
-            shapes[shapeIndex].ComputeBounds(pose.Orientation, shapeBatches, out min, out max);
-            min += pose.Position;
-            max += pose.Position;
+            shapes[shapeIndex].ComputeBounds(orientation, shapeBatches, out min, out max);
         }
 
         public override void RayTest<TRayHitHandler>(int shapeIndex, in RigidPose pose, in RayData ray, ref float maximumT, ref TRayHitHandler hitHandler)
@@ -383,23 +410,36 @@ namespace BepuPhysics.Collidables
         /// <param name="shapeIndex">Index of the shape.</param>
         /// <param name="bounds">Bounding box of the specified shape with the specified pose.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void UpdateBounds(in RigidPose pose, ref TypedIndex shapeIndex, out BoundingBox bounds)
+        public void UpdateBounds(RigidPose pose, TypedIndex shapeIndex, out BoundingBox bounds)
         {
             //Note: the min and max here are in absolute coordinates, which means this is a spot that has to be updated in the event that positions use a higher precision representation.
             batches[shapeIndex.Type].ComputeBounds(shapeIndex.Index, pose, out bounds.Min, out bounds.Max);
+        }
+        /// <summary>
+        /// Computes a bounding box for a single shape.
+        /// </summary>
+        /// <param name="position">Position of the shape.</param>
+        /// <param name="orientation">Orientation of the shape.</param>
+        /// <param name="shapeIndex">Index of the shape.</param>
+        /// <param name="bounds">Bounding box of the specified shape with the specified pose.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void UpdateBounds(Vector3 position, Quaternion orientation, TypedIndex shapeIndex, out BoundingBox bounds)
+        {
+            //Note: the min and max here are in absolute coordinates, which means this is a spot that has to be updated in the event that positions use a higher precision representation.
+            batches[shapeIndex.Type].ComputeBounds(shapeIndex.Index, position, orientation, out bounds.Min, out bounds.Max);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref TShape GetShape<TShape>(int shapeIndex) where TShape : unmanaged, IShape
         {
-            var typeId = default(TShape).TypeId;
+            var typeId = TShape.TypeId;
             return ref Unsafe.As<ShapeBatch, ShapeBatch<TShape>>(ref batches[typeId])[shapeIndex];
         }
 
 
         public TypedIndex Add<TShape>(in TShape shape) where TShape : unmanaged, IShape
         {
-            var typeId = default(TShape).TypeId;
+            var typeId = TShape.TypeId;
             if (RegisteredTypeSpan <= typeId)
             {
                 registeredTypeSpan = typeId + 1;
@@ -410,7 +450,7 @@ namespace BepuPhysics.Collidables
             }
             if (batches[typeId] == null)
             {
-                batches[typeId] = default(TShape).CreateShapeBatch(pool, InitialCapacityPerTypeBatch, this);
+                batches[typeId] = TShape.CreateShapeBatch(pool, InitialCapacityPerTypeBatch, this);
             }
 
             Debug.Assert(batches[typeId] is ShapeBatch<TShape>);

@@ -1,11 +1,8 @@
 ﻿using BepuUtilities.Memory;
-using System;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using BepuPhysics.Constraints;
-using BepuPhysics.Collidables;
-using BepuPhysics.CollisionDetection;
 using BepuUtilities;
 using static BepuUtilities.GatherScatter;
 using System.Runtime.Intrinsics.X86;
@@ -17,7 +14,7 @@ namespace BepuPhysics
     {
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteGatherInertia(int index, int bodyIndexInBundle, ref Buffer<SolverState> states, ref BodyInertiaWide gatheredInertias)
+        private static void WriteGatherInertia(int index, int bodyIndexInBundle, ref Buffer<BodyDynamics> states, ref BodyInertiaWide gatheredInertias)
         {
             ref var source = ref states[index].Inertia.World;
             ref var targetSlot = ref GetOffsetInstance(ref gatheredInertias, bodyIndexInBundle);
@@ -31,7 +28,7 @@ namespace BepuPhysics
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteGatherMotionState(int index, int bodyIndexInBundle, ref Buffer<SolverState> states,
+        private static void WriteGatherMotionState(int index, int bodyIndexInBundle, ref Buffer<BodyDynamics> states,
             ref Vector3Wide position, ref QuaternionWide orientation, ref BodyVelocityWide velocity)
         {
             ref var state = ref states[index].Motion;
@@ -43,7 +40,7 @@ namespace BepuPhysics
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        unsafe static void FallbackGatherMotionState(SolverState* states, Vector<int> encodedBodyIndices, ref Vector3Wide position, ref QuaternionWide orientation, ref BodyVelocityWide velocity)
+        unsafe static void FallbackGatherMotionState(BodyDynamics* states, Vector<int> encodedBodyIndices, ref Vector3Wide position, ref QuaternionWide orientation, ref BodyVelocityWide velocity)
         {
             var pPositionX = (float*)Unsafe.AsPointer(ref position.X);
             var pPositionY = (float*)Unsafe.AsPointer(ref position.Y);
@@ -81,7 +78,7 @@ namespace BepuPhysics
             }
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        unsafe static void FallbackGatherInertia(SolverState* states, Vector<int> encodedBodyIndices, ref BodyInertiaWide inertia, int offsetInFloats)
+        unsafe static void FallbackGatherInertia(BodyDynamics* states, Vector<int> encodedBodyIndices, ref BodyInertiaWide inertia, int offsetInFloats)
         {
             var pMass = (float*)Unsafe.AsPointer(ref inertia.InverseMass);
             var pInertiaXX = (float*)Unsafe.AsPointer(ref inertia.InverseInertiaTensor.XX);
@@ -111,7 +108,7 @@ namespace BepuPhysics
         public const int KinematicFlagIndex = 30;
         public const int KinematicMask = 1 << KinematicFlagIndex;
         /// <summary>
-        /// Constraint body references greater than a given unsigned value are either kinematic (1<<30 set) or correspond to an empty lane (1<<31 set).
+        /// Constraint body references greater than a given unsigned value are either kinematic (bit 30 set) or correspond to an empty lane (bit 31 set).
         /// </summary>
         public const uint DynamicLimit = KinematicMask;
         public const uint BodyReferenceMetadataMask = (1u << DoesntExistFlagIndex) | KinematicMask;
@@ -270,7 +267,7 @@ namespace BepuPhysics
         public unsafe void GatherState<TAccessFilter>(Vector<int> encodedBodyIndices, bool worldInertia, out Vector3Wide position, out QuaternionWide orientation, out BodyVelocityWide velocity, out BodyInertiaWide inertia)
             where TAccessFilter : unmanaged, IBodyAccessFilter
         {
-            var solverStates = ActiveSet.SolverStates.Memory;
+            var solverStates = ActiveSet.DynamicsState.Memory;
             Unsafe.SkipInit(out TAccessFilter filter);
             if (Avx.IsSupported && Vector<float>.Count == 8)
             {
@@ -489,7 +486,7 @@ namespace BepuPhysics
         {
             if (Avx.IsSupported && Vector<float>.Count == 8)
             {
-                var states = ActiveSet.SolverStates.Memory;
+                var states = ActiveSet.DynamicsState.Memory;
                 {
                     var m0 = orientation.X.AsVector256();
                     var m1 = orientation.Y.AsVector256();
@@ -542,7 +539,7 @@ namespace BepuPhysics
                 {
                     if (mask[innerIndex] == 0)
                         continue;
-                    ref var pose = ref ActiveSet.SolverStates[encodedBodyIndices[innerIndex]].Motion.Pose;
+                    ref var pose = ref ActiveSet.DynamicsState[encodedBodyIndices[innerIndex]].Motion.Pose;
                     pose.Position = new Vector3(position.X[innerIndex], position.Y[innerIndex], position.Z[innerIndex]);
                     pose.Orientation = new Quaternion(orientation.X[innerIndex], orientation.Y[innerIndex], orientation.Z[innerIndex], orientation.W[innerIndex]);
 
@@ -558,7 +555,7 @@ namespace BepuPhysics
         {
             if (Avx.IsSupported && Vector<float>.Count == 8)
             {
-                var states = ActiveSet.SolverStates.Memory;
+                var states = ActiveSet.DynamicsState.Memory;
                 {
                     var m0 = inertia.InverseInertiaTensor.XX.AsVector256();
                     var m1 = inertia.InverseInertiaTensor.YX.AsVector256();
@@ -612,7 +609,7 @@ namespace BepuPhysics
                 {
                     if (mask[innerIndex] == 0)
                         continue;
-                    ref var target = ref ActiveSet.SolverStates[encodedBodyIndices[innerIndex]].Inertia.World;
+                    ref var target = ref ActiveSet.DynamicsState[encodedBodyIndices[innerIndex]].Inertia.World;
                     target.InverseInertiaTensor.XX = inertia.InverseInertiaTensor.XX[innerIndex];
                     target.InverseInertiaTensor.YX = inertia.InverseInertiaTensor.YX[innerIndex];
                     target.InverseInertiaTensor.YY = inertia.InverseInertiaTensor.YY[innerIndex];
@@ -674,7 +671,7 @@ namespace BepuPhysics
                     var o6 = Avx.Shuffle(n4, n5, 2 | (3 << 2) | (2 << 4) | (3 << 6));
 
                     var indices = (uint*)Unsafe.AsPointer(ref encodedBodyIndices);
-                    var states = ActiveSet.SolverStates.Memory;
+                    var states = ActiveSet.DynamicsState.Memory;
                     if (indices[0] < DynamicLimit) Sse.StoreAligned((float*)(states + indices[0]) + targetOffset, o0.GetLower());
                     if (indices[1] < DynamicLimit) Sse.StoreAligned((float*)(states + indices[1]) + targetOffset, o4.GetLower());
                     if (indices[2] < DynamicLimit) Sse.StoreAligned((float*)(states + indices[2]) + targetOffset, o2.GetLower());
@@ -716,7 +713,7 @@ namespace BepuPhysics
                     var o7 = Avx.Shuffle(n6, n7, 2 | (3 << 2) | (2 << 4) | (3 << 6));
 
                     var indices = (uint*)Unsafe.AsPointer(ref encodedBodyIndices);
-                    var states = ActiveSet.SolverStates.Memory;
+                    var states = ActiveSet.DynamicsState.Memory;
                     if (indices[0] < DynamicLimit) Avx.StoreAligned((float*)(states + indices[0]) + 8, Avx.Permute2x128(o0, o1, 0 | (2 << 4)));
                     if (indices[1] < DynamicLimit) Avx.StoreAligned((float*)(states + indices[1]) + 8, Avx.Permute2x128(o4, o5, 0 | (2 << 4)));
                     if (indices[2] < DynamicLimit) Avx.StoreAligned((float*)(states + indices[2]) + 8, Avx.Permute2x128(o2, o3, 0 | (2 << 4)));
@@ -748,7 +745,7 @@ namespace BepuPhysics
                     if (indices[innerIndex] >= DynamicLimit)
                         continue;
                     ref var sourceSlot = ref GetOffsetInstance(ref sourceVelocities, innerIndex);
-                    ref var target = ref ActiveSet.SolverStates[indices[innerIndex]].Motion.Velocity;
+                    ref var target = ref ActiveSet.DynamicsState[indices[innerIndex]].Motion.Velocity;
                     target.Linear = new Vector3(sourceSlot.Linear.X[0], sourceSlot.Linear.Y[0], sourceSlot.Linear.Z[0]);
                     target.Angular = new Vector3(sourceSlot.Angular.X[0], sourceSlot.Angular.Y[0], sourceSlot.Angular.Z[0]);
                 }

@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace BepuPhysics.Constraints
 {
@@ -60,7 +57,7 @@ namespace BepuPhysics.Constraints
             return IsFiniteNumber(value) && value <= 0;
         }
         [Conditional("DEBUG")]
-        public static void AssertUnitLength(in Vector3 v, string typeName, string propertyName)
+        public static void AssertUnitLength(Vector3 v, string typeName, string propertyName)
         {
             var lengthSquared = v.LengthSquared();
             if (lengthSquared > 1 + 1e-5f || lengthSquared < 1 - 1e-5f || !IsFiniteNumber(lengthSquared))
@@ -69,7 +66,7 @@ namespace BepuPhysics.Constraints
             }
         }
         [Conditional("DEBUG")]
-        public static void AssertUnitLength(in Quaternion q, string typeName, string propertyName)
+        public static void AssertUnitLength(Quaternion q, string typeName, string propertyName)
         {
             var lengthSquared = q.LengthSquared();
             if (lengthSquared > 1 + 1e-5f || lengthSquared < 1 - 1e-5f || !IsFiniteNumber(lengthSquared))

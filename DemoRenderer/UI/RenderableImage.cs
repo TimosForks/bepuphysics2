@@ -10,7 +10,7 @@ using System.Text;
 namespace DemoRenderer.UI
 {
     /// <summary>
-    /// Runtime type containing GPU-related information necessary to render a specific font type.
+    /// Convenience type bundling a GPU resident texture, its view, and a CPU side buffer for uploading to the GPU.
     /// </summary>
     public class RenderableImage : IDisposable
     {
@@ -50,7 +50,7 @@ namespace DemoRenderer.UI
         {
             if (imageContent.TexelSizeInBytes != 4)
             {
-                throw new ArgumentException("The renderable image assumes an R8G8B8A8_UNorm or  texture.");
+                throw new ArgumentException("The renderable image assumes an R8G8B8A8_UNorm or R8G8B8A8_UNorm_SRgb texture.");
             }
             Debug.Assert(imageContent.MipLevels == 1, "We ignore any mip levels stored in the content; if the content pipeline output them, something's likely mismatched.");
             Initialize(device, imageContent.Width, imageContent.Height, srgb, debugName);

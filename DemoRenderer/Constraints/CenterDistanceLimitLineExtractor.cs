@@ -1,5 +1,4 @@
 ﻿using BepuUtilities.Collections;
-using BepuUtilities.Memory;
 using BepuPhysics;
 using BepuPhysics.Constraints;
 using System.Numerics;
@@ -9,14 +8,14 @@ namespace DemoRenderer.Constraints
 {
     struct CenterDistanceLimitLineExtractor : IConstraintLineExtractor<CenterDistanceLimitPrestepData>
     {
-        public int LinesPerConstraint => 5;
+        public static int LinesPerConstraint => 5;
 
-        public unsafe void ExtractLines(ref CenterDistanceLimitPrestepData prestepBundle, int setIndex, int* bodyIndices,
+        public static unsafe void ExtractLines(ref CenterDistanceLimitPrestepData prestepBundle, int setIndex, int* bodyIndices,
             Bodies bodies, ref Vector3 tint, ref QuickList<LineInstance> lines)
         {
             //Could do bundles of constraints at a time, but eh.
-            ref var poseA = ref bodies.Sets[setIndex].SolverStates[bodyIndices[0]].Motion.Pose;
-            ref var poseB = ref bodies.Sets[setIndex].SolverStates[bodyIndices[1]].Motion.Pose;
+            ref var poseA = ref bodies.Sets[setIndex].DynamicsState[bodyIndices[0]].Motion.Pose;
+            ref var poseB = ref bodies.Sets[setIndex].DynamicsState[bodyIndices[1]].Motion.Pose;
             var minimumDistance = GatherScatter.GetFirst(ref prestepBundle.MinimumDistance);
             var maximumDistance = GatherScatter.GetFirst(ref prestepBundle.MaximumDistance);
             var color = new Vector3(0.2f, 0.2f, 1f) * tint;

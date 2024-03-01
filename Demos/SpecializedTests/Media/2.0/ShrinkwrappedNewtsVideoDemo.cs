@@ -13,7 +13,7 @@ namespace Demos.SpecializedTests.Media
 {
     public class ShrinkwrappedNewtsVideoDemo : Demo
     {
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(25f, 1.5f, 15f);
             camera.Yaw = 3 * MathHelper.Pi / 4;
@@ -52,7 +52,7 @@ namespace Demos.SpecializedTests.Media
 
 
 
-            DemoMeshHelper.LoadModel(content, BufferPool, "Content\\newt.obj", new Vector3(1, 1.5f, 1), out mesh);
+            mesh = DemoMeshHelper.LoadModel(content, BufferPool, "Content\\newt.obj", new Vector3(1, 1.5f, 1));
             Simulation.Statics.Add(new StaticDescription(new Vector3(30, 0, 20), QuaternionEx.CreateFromAxisAngle(Vector3.UnitY, -3 * MathHelper.PiOver4), Simulation.Shapes.Add(mesh)));
         }
 

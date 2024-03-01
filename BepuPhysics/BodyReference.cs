@@ -1,12 +1,8 @@
 ﻿using BepuPhysics.Collidables;
 using BepuUtilities;
 using BepuUtilities.Collections;
-using BepuUtilities.Memory;
-using System;
-using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace BepuPhysics
 {
@@ -99,7 +95,7 @@ namespace BepuPhysics
             get
             {
                 ref var location = ref MemoryLocation;
-                return ref Bodies.Sets[location.SetIndex].SolverStates[location.Index].Motion.Velocity;
+                return ref Bodies.Sets[location.SetIndex].DynamicsState[location.Index].Motion.Velocity;
             }
         }
 
@@ -112,7 +108,7 @@ namespace BepuPhysics
             get
             {
                 ref var location = ref MemoryLocation;
-                return ref Bodies.Sets[location.SetIndex].SolverStates[location.Index].Motion.Pose;
+                return ref Bodies.Sets[location.SetIndex].DynamicsState[location.Index].Motion.Pose;
             }
         }
 
@@ -125,20 +121,20 @@ namespace BepuPhysics
             get
             {
                 ref var location = ref MemoryLocation;
-                return ref Bodies.Sets[location.SetIndex].SolverStates[location.Index].Motion;
+                return ref Bodies.Sets[location.SetIndex].DynamicsState[location.Index].Motion;
             }
         }
 
         /// <summary>
-        /// Gets a reference to the body's solver-relevant state, including both pose, velocity, and inertia.
+        /// Gets a reference to the body's solver-relevant state, including pose, velocity, and inertia.
         /// </summary>
-        public ref SolverState SolverState
+        public ref BodyDynamics Dynamics
         {
             [MethodImpl(MethodImplOptions.NoInlining)]
             get
             {
                 ref var location = ref MemoryLocation;
-                return ref Bodies.Sets[location.SetIndex].SolverStates[location.Index];
+                return ref Bodies.Sets[location.SetIndex].DynamicsState[location.Index];
             }
         }
 
@@ -164,7 +160,7 @@ namespace BepuPhysics
             get
             {
                 ref var location = ref MemoryLocation;
-                return ref Bodies.Sets[location.SetIndex].SolverStates[location.Index].Inertia.Local;
+                return ref Bodies.Sets[location.SetIndex].DynamicsState[location.Index].Inertia.Local;
             }
         }
 
@@ -209,7 +205,7 @@ namespace BepuPhysics
         /// <summary>
         /// Gets whether the body is kinematic, meaning its inverse inertia and mass are all zero.
         /// </summary>
-        public unsafe bool Kinematic { get { return Bodies.IsKinematicUnsafeGCHole(ref LocalInertia); } }
+        public bool Kinematic { get { return Bodies.IsKinematicUnsafeGCHole(ref LocalInertia); } }
 
         /// <summary>
         /// Gets whether the body has locked inertia, meaning its inverse inertia tensor is zero.
@@ -248,7 +244,7 @@ namespace BepuPhysics
             ref var set = ref Bodies.Sets[MemoryLocation.SetIndex];
             //Note that inertia.World is ephemeral data packed into the same cache line for the benefit of the solver.
             //It should not be assumed to contain up to date information outside of the velocity integration to pose integration interval, so this computes world inertia from scratch.
-            ref var state = ref set.SolverStates[location.Index];
+            ref var state = ref set.DynamicsState[location.Index];
             PoseIntegration.RotateInverseInertia(state.Inertia.Local.InverseInertiaTensor, state.Motion.Pose.Orientation, out inverseInertia);
         }
 
@@ -352,7 +348,7 @@ namespace BepuPhysics
         /// <param name="impulse">Impulse to apply to the body.</param>
         /// <param name="impulseOffset">World space offset from the center of the body to apply the impulse at.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ApplyImpulse(in Vector3 impulse, in Vector3 impulseOffset, ref BodyInertia localInertia, ref RigidPose pose, ref BodyVelocity velocity)
+        public static void ApplyImpulse(Vector3 impulse, Vector3 impulseOffset, ref BodyInertia localInertia, ref RigidPose pose, ref BodyVelocity velocity)
         {
             PoseIntegration.RotateInverseInertia(localInertia.InverseInertiaTensor, pose.Orientation, out var inverseInertiaTensor);
             ApplyLinearImpulse(impulse, localInertia.InverseMass, ref velocity.Linear);
@@ -367,9 +363,9 @@ namespace BepuPhysics
         /// <param name="impulse">Impulse to apply to the body.</param>
         /// <param name="impulseOffset">World space offset from the center of the body to apply the impulse at.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ApplyImpulse(in BodySet set, int index, in Vector3 impulse, in Vector3 impulseOffset)
+        public static void ApplyImpulse(in BodySet set, int index, Vector3 impulse, Vector3 impulseOffset)
         {
-            ref var state = ref set.SolverStates[index];
+            ref var state = ref set.DynamicsState[index];
             ApplyImpulse(impulse, impulseOffset, ref state.Inertia.Local, ref state.Motion.Pose, ref state.Motion.Velocity);
         }
 
@@ -380,7 +376,7 @@ namespace BepuPhysics
         /// <param name="inverseInertiaTensor">Inverse inertia tensor to transform the impulse with.</param>
         /// <param name="angularVelocity">Angular velocity to be modified.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ApplyAngularImpulse(in Vector3 angularImpulse, in Symmetric3x3 inverseInertiaTensor, ref Vector3 angularVelocity)
+        public static void ApplyAngularImpulse(Vector3 angularImpulse, in Symmetric3x3 inverseInertiaTensor, ref Vector3 angularVelocity)
         {
             Symmetric3x3.TransformWithoutOverlap(angularImpulse, inverseInertiaTensor, out var angularVelocityChange);
             angularVelocity += angularVelocityChange;
@@ -393,7 +389,7 @@ namespace BepuPhysics
         /// <param name="inverseMass">Inverse mass to transform the impulse with.</param>
         /// <param name="linearVelocity">Linear velocity to be modified.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ApplyLinearImpulse(in Vector3 impulse, float inverseMass, ref Vector3 linearVelocity)
+        public static void ApplyLinearImpulse(Vector3 impulse, float inverseMass, ref Vector3 linearVelocity)
         {
             linearVelocity += impulse * inverseMass;
         }
@@ -405,7 +401,7 @@ namespace BepuPhysics
         /// <param name="impulse">Impulse to apply to the body.</param>
         /// <param name="impulseOffset">World space offset to apply the impulse at.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ApplyImpulse(in Vector3 impulse, in Vector3 impulseOffset)
+        public void ApplyImpulse(Vector3 impulse, Vector3 impulseOffset)
         {
             ref var location = ref MemoryLocation;
             ApplyImpulse(Bodies.Sets[location.SetIndex], location.Index, impulse, impulseOffset);
@@ -416,11 +412,11 @@ namespace BepuPhysics
         /// </summary>
         /// <param name="impulse">Impulse to apply to the velocity.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ApplyLinearImpulse(in Vector3 impulse)
+        public void ApplyLinearImpulse(Vector3 impulse)
         {
             ref var location = ref MemoryLocation;
             ref var set = ref Bodies.Sets[location.SetIndex];
-            ref var state = ref set.SolverStates[location.Index];
+            ref var state = ref set.DynamicsState[location.Index];
             ApplyLinearImpulse(impulse, state.Inertia.Local.InverseMass, ref state.Motion.Velocity.Linear);
         }
 
@@ -430,7 +426,7 @@ namespace BepuPhysics
         /// <param name="offset">Offset from the body's center to </param>
         /// <param name="velocity">Effective velocity of the point if it were attached to the body.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void GetVelocityForOffset(in Vector3 offset, out Vector3 velocity)
+        public void GetVelocityForOffset(Vector3 offset, out Vector3 velocity)
         {
             velocity = Velocity.Linear + Vector3.Cross(Velocity.Angular, offset);
         }
@@ -440,11 +436,11 @@ namespace BepuPhysics
         /// </summary>
         /// <param name="angularImpulse">Impulse to apply to the velocity.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ApplyAngularImpulse(in Vector3 angularImpulse)
+        public void ApplyAngularImpulse(Vector3 angularImpulse)
         {
             ref var location = ref MemoryLocation;
             ref var set = ref Bodies.Sets[location.SetIndex];
-            ref var state = ref set.SolverStates[location.Index];
+            ref var state = ref set.DynamicsState[location.Index];
             //Note that inertia.World is ephemeral data packed into the same cache line for the benefit of the solver.
             //It should not be assumed to contain up to date information outside of the velocity integration to pose integration interval, so this computes world inertia from scratch.
             PoseIntegration.RotateInverseInertia(state.Inertia.Local.InverseInertiaTensor, state.Motion.Pose.Orientation, out var inverseInertia);

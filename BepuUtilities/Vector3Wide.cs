@@ -1,5 +1,4 @@
-﻿using System;
-using System.Numerics;
+﻿using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace BepuUtilities
@@ -179,8 +178,8 @@ namespace BepuUtilities
         /// <summary>
         /// Finds the result of subtracting the components of a vector from a scalar.
         /// </summary>
-        /// <param name="v">Vector to subtract from the scalar.</param>
-        /// <param name="s">Scalar to subtract from.</param>
+        /// <param name="a">Vector to subtract from the scalar.</param>
+        /// <param name="b">Scalar to subtract from.</param>
         /// <returns>Vector with components equal the input vector subtracted from the input scalar.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector3Wide operator -(Vector3Wide a, Vector<float> b)
@@ -801,7 +800,7 @@ namespace BepuUtilities
         /// <param name="source">Vector to copy values from.</param>
         /// <param name="targetSlot">Wide vectorto place values into.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteFirst(in Vector3 source, ref Vector3Wide targetSlot)
+        public static void WriteFirst(Vector3 source, ref Vector3Wide targetSlot)
         {
             GatherScatter.GetFirst(ref targetSlot.X) = source.X;
             GatherScatter.GetFirst(ref targetSlot.Y) = source.Y;
@@ -815,7 +814,7 @@ namespace BepuUtilities
         /// <param name="slotIndex">Index of the slot to write into.</param>
         /// <param name="target">Bundle to write the value into.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteSlot(in Vector3 source, int slotIndex, ref Vector3Wide target)
+        public static void WriteSlot(Vector3 source, int slotIndex, ref Vector3Wide target)
         {
             WriteFirst(source, ref GatherScatter.GetOffsetInstance(ref target, slotIndex));
         }
@@ -826,7 +825,7 @@ namespace BepuUtilities
         /// <param name="source">Source value to write to every bundle slot.</param>
         /// <param name="broadcasted">Bundle containing the source's components in every slot.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Broadcast(in Vector3 source, out Vector3Wide broadcasted)
+        public static void Broadcast(Vector3 source, out Vector3Wide broadcasted)
         {
             broadcasted.X = new Vector<float>(source.X);
             broadcasted.Y = new Vector<float>(source.Y);

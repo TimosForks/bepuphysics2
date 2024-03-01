@@ -3,10 +3,11 @@ using System;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-
+using System.Runtime.InteropServices;
 
 namespace BepuPhysics.Trees
 {
+    [StructLayout(LayoutKind.Sequential)]
     public unsafe partial struct Tree
     {
         /// <summary>
@@ -17,57 +18,41 @@ namespace BepuPhysics.Trees
         /// Buffer of metanodes in the tree. Metanodes contain metadata that aren't read during most query operations but are useful for bookkeeping.
         /// </summary>
         public Buffer<Metanode> Metanodes;
-        int nodeCount;
-        /// <summary>
-        /// Gets or sets the number of nodes in the tree.
-        /// </summary>
-        public int NodeCount
-        {
-            readonly get
-            {
-                return nodeCount;
-            }
-            set
-            {
-                nodeCount = value;
-            }
-        }
-
         /// <summary>
         /// Buffer of leaves in the tree.
         /// </summary>
         public Buffer<Leaf> Leaves;
-        int leafCount;
         /// <summary>
-        /// Gets or sets the number of leaves in the tree.
+        /// Number of nodes in the tree.
         /// </summary>
-        public int LeafCount
-        {
-            readonly get
-            {
-                return leafCount;
-            }
-            set
-            {
-                leafCount = value;
-            }
-        }
+        public int NodeCount;
+        /// <summary>
+        /// Number of leaves in the tree.
+        /// </summary>
+        public int LeafCount;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int AllocateNode()
         {
-            Debug.Assert(Nodes.Length > nodeCount && Metanodes.Length > nodeCount,
+            Debug.Assert(Nodes.Length > NodeCount && Metanodes.Length > NodeCount,
                 "Any attempt to allocate a node should not overrun the allocated nodes. For all operations that allocate nodes, capacity should be preallocated.");
-            return nodeCount++;
+            return NodeCount++;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int AddLeaf(int nodeIndex, int childIndex)
         {
-            Debug.Assert(leafCount < Leaves.Length,
+            Debug.Assert(LeafCount < Leaves.Length,
                 "Any attempt to allocate a leaf should not overrun the allocated leaves. For all operations that allocate leaves, capacity should be preallocated.");
-            Leaves[leafCount] = new Leaf(nodeIndex, childIndex);
-            return leafCount++;
+            Leaves[LeafCount] = new Leaf(nodeIndex, childIndex);
+            return LeafCount++;
+        }
+
+        int AllocateLeaf()
+        {
+            Debug.Assert(LeafCount < Leaves.Length,
+                "Any attempt to allocate a leaf should not overrun the allocated leaves. For all operations that allocate leaves, capacity should be preallocated.");
+            return LeafCount++;
         }
 
         /// <summary>
@@ -92,7 +77,7 @@ namespace BepuPhysics.Trees
         /// <param name="min">New minimum bounds for the leaf.</param>
         /// <param name="max">New maximum bounds for the leaf.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe readonly void UpdateBounds(int leafIndex, Vector3 min, Vector3 max)
+        public readonly void UpdateBounds(int leafIndex, Vector3 min, Vector3 max)
         {
             GetBoundsPointers(leafIndex, out var minPointer, out var maxPointer);
             *minPointer = min;
@@ -105,7 +90,7 @@ namespace BepuPhysics.Trees
         /// </summary>
         /// <param name="pool">Buffer pool to use to allocate resources in the tree.</param>
         /// <param name="initialLeafCapacity">Initial number of leaves to allocate room for.</param>
-        public unsafe Tree(BufferPool pool, int initialLeafCapacity = 4096) : this()
+        public Tree(BufferPool pool, int initialLeafCapacity = 4096) : this()
         {
             if (initialLeafCapacity <= 0)
                 throw new ArgumentException("Initial leaf capacity must be positive.");
@@ -123,19 +108,19 @@ namespace BepuPhysics.Trees
         {
             if (data.Length <= 4)
                 throw new ArgumentException($"Data is only {data.Length} bytes long; that's too small for even a header.");
-            leafCount = Unsafe.As<byte, int>(ref data[0]);
-            nodeCount = leafCount - 1;
-            var leafByteCount = leafCount * sizeof(Leaf);
-            var nodeByteCount = nodeCount * sizeof(Node);
-            var metanodeByteCount = nodeCount * sizeof(Metanode);
+            LeafCount = Unsafe.As<byte, int>(ref data[0]);
+            NodeCount = LeafCount - 1;
+            var leafByteCount = LeafCount * sizeof(Leaf);
+            var nodeByteCount = NodeCount * sizeof(Node);
+            var metanodeByteCount = NodeCount * sizeof(Metanode);
             const int leavesStartIndex = 4;
             var nodesStartIndex = leavesStartIndex + leafByteCount;
             var metanodesStartIndex = nodesStartIndex + nodeByteCount;
             if (data.Length < leavesStartIndex + leafByteCount + nodeByteCount + metanodeByteCount)
-                throw new ArgumentException($"Header suggested there were {leafCount} leaves, but there's not enough room in the data for that.");
-            pool.Take(leafCount, out Leaves);
-            pool.Take(nodeCount, out Nodes);
-            pool.Take(nodeCount, out Metanodes);
+                throw new ArgumentException($"Header suggested there were {LeafCount} leaves, but there's not enough room in the data for that.");
+            pool.Take(LeafCount, out Leaves);
+            pool.Take(NodeCount, out Nodes);
+            pool.Take(NodeCount, out Metanodes);
             Unsafe.CopyBlockUnaligned(ref *(byte*)Leaves.Memory, ref data[leavesStartIndex], (uint)leafByteCount);
             Unsafe.CopyBlockUnaligned(ref *(byte*)Nodes.Memory, ref data[nodesStartIndex], (uint)nodeByteCount);
             Unsafe.CopyBlockUnaligned(ref *(byte*)Metanodes.Memory, ref data[metanodesStartIndex], (uint)metanodeByteCount);
@@ -182,7 +167,7 @@ namespace BepuPhysics.Trees
         void InitializeRoot()
         {
             //The root always exists, even if there are no children in it. Makes some bookkeeping simpler.
-            nodeCount = 1;
+            NodeCount = 1;
             ref var rootMetanode = ref Metanodes[0];
             rootMetanode.Parent = -1;
             rootMetanode.IndexInParent = -1;
@@ -196,27 +181,27 @@ namespace BepuPhysics.Trees
         public void Resize(BufferPool pool, int targetLeafSlotCount)
         {
             //Note that it's not safe to resize below the size of potentially used leaves. If the user wants to go smaller, they'll need to explicitly deal with the leaves somehow first.
-            var leafCapacityForTarget = BufferPool.GetCapacityForCount<Leaf>(Math.Max(leafCount, targetLeafSlotCount));
+            var leafCapacityForTarget = BufferPool.GetCapacityForCount<Leaf>(Math.Max(LeafCount, targetLeafSlotCount));
             //Adding incrementally checks the capacity of leaves, and issues a resize if there isn't enough space. But it doesn't check nodes.
             //You could change that, but for now, we simply ensure that the node array has sufficient room to hold everything in the resized leaf array.
-            var nodeCapacityForTarget = BufferPool.GetCapacityForCount<Node>(Math.Max(nodeCount, leafCapacityForTarget - 1));
-            var metanodeCapacityForTarget = BufferPool.GetCapacityForCount<Metanode>(Math.Max(nodeCount, leafCapacityForTarget - 1));
+            var nodeCapacityForTarget = BufferPool.GetCapacityForCount<Node>(Math.Max(NodeCount, leafCapacityForTarget - 1));
+            var metanodeCapacityForTarget = BufferPool.GetCapacityForCount<Metanode>(Math.Max(NodeCount, leafCapacityForTarget - 1));
             bool wasAllocated = Leaves.Allocated;
             Debug.Assert(Leaves.Allocated == Nodes.Allocated);
             if (leafCapacityForTarget != Leaves.Length)
             {
-                pool.ResizeToAtLeast(ref Leaves, leafCapacityForTarget, leafCount);
+                pool.ResizeToAtLeast(ref Leaves, leafCapacityForTarget, LeafCount);
             }
             if (nodeCapacityForTarget != Nodes.Length)
             {
-                pool.ResizeToAtLeast(ref Nodes, nodeCapacityForTarget, nodeCount);
+                pool.ResizeToAtLeast(ref Nodes, nodeCapacityForTarget, NodeCount);
             }
             if (metanodeCapacityForTarget != Metanodes.Length)
             {
-                pool.ResizeToAtLeast(ref Metanodes, metanodeCapacityForTarget, nodeCount);
+                pool.ResizeToAtLeast(ref Metanodes, metanodeCapacityForTarget, NodeCount);
                 //A node's RefineFlag must be 0, so just clear out the node set. 
                 //TODO: This won't be necessary if we get rid of refineflags as a concept.
-                Metanodes.Clear(nodeCount, Nodes.Length - nodeCount);
+                Metanodes.Clear(NodeCount, Nodes.Length - NodeCount);
             }
             if (!wasAllocated)
             {
@@ -230,7 +215,7 @@ namespace BepuPhysics.Trees
         /// </summary>
         public void Clear()
         {
-            leafCount = 0;
+            LeafCount = 0;
             InitializeRoot();
         }
 
@@ -259,7 +244,7 @@ namespace BepuPhysics.Trees
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Equals(in Tree a, in Tree b)
         {
-            return a.Nodes.Memory == b.Nodes.Memory && a.nodeCount == b.nodeCount;
+            return a.Nodes.Memory == b.Nodes.Memory && a.NodeCount == b.NodeCount;
         }
 
     }

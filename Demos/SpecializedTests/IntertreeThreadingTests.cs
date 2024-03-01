@@ -1,12 +1,9 @@
-﻿using BepuPhysics;
-using BepuPhysics.CollisionDetection;
-using BepuUtilities;
+﻿using BepuUtilities;
 using BepuUtilities.Memory;
 using BepuPhysics.Trees;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using System.Text;
 using System.Runtime.CompilerServices;
 
 namespace Demos.SpecializedTests
@@ -51,7 +48,7 @@ namespace Demos.SpecializedTests
             pairs.Sort(comparison);
         }
 
-        static void TestTrees(BufferPool pool, IThreadDispatcher threadDispatcher, Random random)
+        unsafe static void TestTrees(BufferPool pool, IThreadDispatcher threadDispatcher, Random random)
         {
             var treeA = new Tree(pool, 1);
             var treeB = new Tree(pool, 1);
@@ -66,20 +63,20 @@ namespace Demos.SpecializedTests
             {
                 GetRandomLocation(random, ref aBounds, out var center);
                 var bounds = new BoundingBox(center - aOffset, center + aOffset);
-                treeA.Add(ref bounds, pool);
+                treeA.Add(bounds, pool);
             }
             for (int i = 0; i < bCount; ++i)
             {
                 GetRandomLocation(random, ref bBounds, out var center);
                 var bounds = new BoundingBox(center - bOffset, center + bOffset);
-                treeB.Add(ref bounds, pool);
+                treeB.Add(bounds, pool);
             }
             
             {
                 var indexToRemove = 1;
                 GetBoundsForLeaf(treeB, indexToRemove, out var removedBounds);
                 treeB.RemoveAt(indexToRemove);
-                treeA.Add(ref removedBounds, pool);
+                treeA.Add(removedBounds, pool);
             }
             
             var singleThreadedResults = new OverlapHandler { Pairs = new List<(int a, int b)>() };

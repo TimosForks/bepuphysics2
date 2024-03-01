@@ -8,14 +8,14 @@ namespace DemoRenderer.Constraints
 {
     struct LinearAxisServoLineExtractor : IConstraintLineExtractor<LinearAxisServoPrestepData>
     {
-        public int LinesPerConstraint => 7;
+        public static int LinesPerConstraint => 7;
 
-        public unsafe void ExtractLines(ref LinearAxisServoPrestepData prestepBundle, int setIndex, int* bodyIndices,
+        public static unsafe void ExtractLines(ref LinearAxisServoPrestepData prestepBundle, int setIndex, int* bodyIndices,
             Bodies bodies, ref Vector3 tint, ref QuickList<LineInstance> lines)
         {
             //Could do bundles of constraints at a time, but eh.
-            ref var poseA = ref bodies.Sets[setIndex].SolverStates[bodyIndices[0]].Motion.Pose;
-            ref var poseB = ref bodies.Sets[setIndex].SolverStates[bodyIndices[1]].Motion.Pose;
+            ref var poseA = ref bodies.Sets[setIndex].DynamicsState[bodyIndices[0]].Motion.Pose;
+            ref var poseB = ref bodies.Sets[setIndex].DynamicsState[bodyIndices[1]].Motion.Pose;
             Vector3Wide.ReadFirst(prestepBundle.LocalOffsetA, out var localOffsetA);
             Vector3Wide.ReadFirst(prestepBundle.LocalOffsetB, out var localOffsetB);
             Vector3Wide.ReadFirst(prestepBundle.LocalPlaneNormal, out var localPlaneNormal);

@@ -1,23 +1,20 @@
 ﻿using BepuUtilities;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace BepuPhysics.Trees
 {
     public interface ISweepLeafTester
     {
-        unsafe void TestLeaf(int leafIndex, ref float maximumT);
+        void TestLeaf(int leafIndex, ref float maximumT);
     }
     partial struct Tree
     {
-        readonly unsafe void Sweep<TLeafTester>(int nodeIndex, in Vector3 expansion, in Vector3 origin, in Vector3 direction, TreeRay* treeRay, int* stack, ref TLeafTester leafTester) where TLeafTester : ISweepLeafTester
+        readonly unsafe void Sweep<TLeafTester>(int nodeIndex, Vector3 expansion, Vector3 origin, Vector3 direction, TreeRay* treeRay, int* stack, ref TLeafTester leafTester) where TLeafTester : ISweepLeafTester
         {
-            Debug.Assert((nodeIndex >= 0 && nodeIndex < nodeCount) || (Encode(nodeIndex) >= 0 && Encode(nodeIndex) < leafCount));
-            Debug.Assert(leafCount >= 2, "This implementation assumes all nodes are filled.");
+            Debug.Assert((nodeIndex >= 0 && nodeIndex < NodeCount) || (Encode(nodeIndex) >= 0 && Encode(nodeIndex) < LeafCount));
+            Debug.Assert(LeafCount >= 2, "This implementation assumes all nodes are filled.");
 
             int stackEnd = 0;
             while (true)
@@ -81,12 +78,12 @@ namespace BepuPhysics.Trees
 
         }
 
-        internal readonly unsafe void Sweep<TLeafTester>(in Vector3 expansion, in Vector3 origin, in Vector3 direction, TreeRay* treeRay, ref TLeafTester sweepTester) where TLeafTester : ISweepLeafTester
+        internal readonly unsafe void Sweep<TLeafTester>(Vector3 expansion, Vector3 origin, Vector3 direction, TreeRay* treeRay, ref TLeafTester sweepTester) where TLeafTester : ISweepLeafTester
         {
-            if (leafCount == 0)
+            if (LeafCount == 0)
                 return;
 
-            if (leafCount == 1)
+            if (LeafCount == 1)
             {
                 //If the first node isn't filled, we have to use a special case.
                 if (Intersects(Nodes[0].A.Min - expansion, Nodes[0].A.Max + expansion, treeRay, out var tA))
@@ -104,7 +101,7 @@ namespace BepuPhysics.Trees
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ConvertBoxToCentroidWithExtent(in Vector3 min, in Vector3 max, out Vector3 origin, out Vector3 expansion)
+        public static void ConvertBoxToCentroidWithExtent(Vector3 min, Vector3 max, out Vector3 origin, out Vector3 expansion)
         {
             var halfMin = 0.5f * min;
             var halfMax = 0.5f * max;
@@ -112,14 +109,14 @@ namespace BepuPhysics.Trees
             origin = halfMax + halfMin;
         }
 
-        public readonly unsafe void Sweep<TLeafTester>(in Vector3 min, in Vector3 max, in Vector3 direction, float maximumT, ref TLeafTester sweepTester) where TLeafTester : ISweepLeafTester
+        public readonly unsafe void Sweep<TLeafTester>(Vector3 min, Vector3 max, Vector3 direction, float maximumT, ref TLeafTester sweepTester) where TLeafTester : ISweepLeafTester
         {
             ConvertBoxToCentroidWithExtent(min, max, out var origin, out var expansion);
             TreeRay.CreateFrom(origin, direction, maximumT, out var treeRay);
             Sweep(expansion, origin, direction, &treeRay, ref sweepTester);
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public readonly unsafe void Sweep<TLeafTester>(in BoundingBox boundingBox, in Vector3 direction, float maximumT, ref TLeafTester sweepTester) where TLeafTester : ISweepLeafTester
+        public readonly void Sweep<TLeafTester>(in BoundingBox boundingBox, Vector3 direction, float maximumT, ref TLeafTester sweepTester) where TLeafTester : ISweepLeafTester
         {
             Sweep(boundingBox.Min, boundingBox.Max, direction, maximumT, ref sweepTester);
         }

@@ -1,16 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using BepuUtilities;
-using BepuPhysics.Collidables;
 using BepuPhysics.Constraints;
 using System.Runtime.CompilerServices;
 using BepuUtilities.Memory;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
-using System.Threading;
-using BepuUtilities.Collections;
-using BepuPhysics.Constraints.Contact;
 
 namespace BepuPhysics.CollisionDetection
 {
@@ -22,11 +15,12 @@ namespace BepuPhysics.CollisionDetection
         public struct PendingConstraintAddCache
         {
             BufferPool pool;
+            [StructLayout(LayoutKind.Sequential)]
             struct PendingConstraint<TBodyHandles, TDescription, TContactImpulses> where TBodyHandles : unmanaged where TDescription : unmanaged, IConstraintDescription<TDescription>
             {
                 //Note the memory ordering. Collidable pair comes first; deterministic flushes rely the memory layout to sort pending constraints.
                 public CollidablePair Pair;
-                public PairCacheIndex ConstraintCacheIndex;
+                public PairCacheChangeIndex PairCacheChange;
                 public TBodyHandles BodyHandles;
                 public TDescription ConstraintDescription;
                 public TContactImpulses Impulses;
@@ -47,14 +41,14 @@ namespace BepuPhysics.CollisionDetection
             }
 
             public unsafe void AddConstraint<TBodyHandles, TDescription, TContactImpulses>(int manifoldConstraintType,
-                ref CollidablePair pair, PairCacheIndex constraintCacheIndex, TBodyHandles bodyHandles, ref TDescription constraintDescription, ref TContactImpulses impulses)
+                CollidablePair pair, PairCacheChangeIndex pairCacheChange, TBodyHandles bodyHandles, ref TDescription constraintDescription, ref TContactImpulses impulses)
                 where TBodyHandles : unmanaged where TDescription : unmanaged, IConstraintDescription<TDescription>
             {
                 ref var cache = ref pendingConstraintsByType[manifoldConstraintType];
                 var byteIndex = cache.Allocate<PendingConstraint<TBodyHandles, TDescription, TContactImpulses>>(minimumConstraintCountPerCache, pool);
                 ref var pendingAdd = ref Unsafe.AsRef<PendingConstraint<TBodyHandles, TDescription, TContactImpulses>>(cache.Buffer.Memory + byteIndex);
                 pendingAdd.Pair = pair;
-                pendingAdd.ConstraintCacheIndex = constraintCacheIndex;
+                pendingAdd.PairCacheChange = pairCacheChange;
                 pendingAdd.BodyHandles = bodyHandles;
                 pendingAdd.ConstraintDescription = constraintDescription;
                 pendingAdd.Impulses = impulses;
@@ -74,7 +68,7 @@ namespace BepuPhysics.CollisionDetection
                         ref var add = ref Unsafe.Add(ref start, i);
                         //Unsafe.AsPointer is not a GC hole here; it's coming from unmanaged memory.
                         var handle = simulation.Solver.Add(new Span<BodyHandle>(Unsafe.AsPointer(ref add.BodyHandles), typeof(TBodyHandles) == typeof(TwoBodyHandles) ? 2 : 1), add.ConstraintDescription);
-                        pairCache.CompleteConstraintAdd(simulation.NarrowPhase, simulation.Solver, ref add.Impulses, add.ConstraintCacheIndex, handle, ref add.Pair);
+                        pairCache.CompleteConstraintAdd(simulation.NarrowPhase, simulation.Solver, ref add.Impulses, add.PairCacheChange, handle, ref add.Pair);
                     }
                 }
             }
@@ -124,7 +118,7 @@ namespace BepuPhysics.CollisionDetection
                 Span<int> encodedBodyIndices = stackalloc int[handles.Length];
                 simulation.Solver.GetBlockingBodyHandles(handles, ref blockingBodyHandles, encodedBodyIndices);
                 while (!simulation.Solver.TryAllocateInBatch(
-                    default(TDescription).ConstraintTypeId, batchIndex,
+                    TDescription.ConstraintTypeId, batchIndex,
                     blockingBodyHandles, encodedBodyIndices, out constraintHandle, out reference))
                 {
                     //If a batch index failed, just try the next one. This is guaranteed to eventually work.
@@ -140,7 +134,7 @@ namespace BepuPhysics.CollisionDetection
                     Debug.Assert(bLocation.SetIndex == 0, "By the time we flush new constraints into the solver, all associated islands should have be awake.");
                     simulation.Bodies.AddConstraint(bLocation.Index, constraintHandle, 1);
                 }
-                pairCache.CompleteConstraintAdd(simulation.NarrowPhase, simulation.Solver, ref constraint.Impulses, constraint.ConstraintCacheIndex, constraintHandle, ref constraint.Pair);
+                pairCache.CompleteConstraintAdd(simulation.NarrowPhase, simulation.Solver, ref constraint.Impulses, constraint.PairCacheChange, constraintHandle, ref constraint.Pair);
             }
 
 
@@ -261,11 +255,11 @@ namespace BepuPhysics.CollisionDetection
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void AddConstraint<TBodyHandles, TDescription, TContactImpulses>(int workerIndex, int manifoldConstraintType, ref CollidablePair pair,
-            PairCacheIndex constraintCacheIndex, ref TContactImpulses impulses, TBodyHandles bodyHandles, ref TDescription constraintDescription)
+        void AddConstraint<TBodyHandles, TDescription, TContactImpulses>(int workerIndex, int manifoldConstraintType, CollidablePair pair,
+            PairCacheChangeIndex pairCacheChange, ref TContactImpulses impulses, TBodyHandles bodyHandles, ref TDescription constraintDescription)
             where TBodyHandles : unmanaged where TDescription : unmanaged, IConstraintDescription<TDescription>
         {
-            overlapWorkers[workerIndex].PendingConstraints.AddConstraint(manifoldConstraintType, ref pair, constraintCacheIndex, bodyHandles, ref constraintDescription, ref impulses);
+            overlapWorkers[workerIndex].PendingConstraints.AddConstraint(manifoldConstraintType, pair, pairCacheChange, bodyHandles, ref constraintDescription, ref impulses);
         }
 
 

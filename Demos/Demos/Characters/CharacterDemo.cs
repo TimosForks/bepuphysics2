@@ -18,7 +18,7 @@ namespace Demos.Demos.Characters
     public class CharacterDemo : Demo
     {
         CharacterControllers characters;
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(20, 10, 20);
             camera.Yaw = MathF.PI;
@@ -86,7 +86,7 @@ namespace Demos.Demos.Characters
             }
 
             //Include a giant newt to test character-newt behavior and to ensure thematic consistency.
-            DemoMeshHelper.LoadModel(content, BufferPool, @"Content\newt.obj", new Vector3(15, 15, 15), out var newtMesh);
+            var newtMesh = DemoMeshHelper.LoadModel(content, BufferPool, @"Content\newt.obj", new Vector3(15, 15, 15));
             Simulation.Statics.Add(new StaticDescription(new Vector3(0, 0.5f, 0), Simulation.Shapes.Add(newtMesh)));
 
             //Give the newt a tongue, I guess.
@@ -135,10 +135,10 @@ namespace Demos.Demos.Characters
                 pose.Orientation = Quaternion.Identity;
                 return pose;
             };
-            var platormShapeIndex = Simulation.Shapes.Add(new Box(5, 1, 5));
+            var platformShapeIndex = Simulation.Shapes.Add(new Box(5, 1, 5));
             for (int i = 0; i < movingPlatforms.Length; ++i)
             {
-                movingPlatforms[i] = new MovingPlatform(platormShapeIndex, i * 3559, 1f / 60f, Simulation, poseCreator);
+                movingPlatforms[i] = new MovingPlatform(platformShapeIndex, i * 3559, 1f / 60f, Simulation, poseCreator);
             }
             var box = new Box(4, 1, 4);
             var boxShapeIndex = Simulation.Shapes.Add(box);

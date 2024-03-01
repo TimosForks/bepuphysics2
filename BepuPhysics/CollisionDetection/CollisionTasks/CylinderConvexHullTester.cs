@@ -1,7 +1,6 @@
 ﻿using BepuPhysics.Collidables;
 using BepuUtilities;
 using System;
-using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
@@ -9,7 +8,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
 {
     public struct CylinderConvexHullTester : IPairTester<CylinderWide, ConvexHullWide, Convex4ContactManifoldWide>
     {
-        public int BatchSize => 16;
+        public static int BatchSize => 16;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static void ProjectOntoCap(Vector3 capCenter, in Matrix3x3 cylinderOrientation, float inverseLocalNormalDotAY, Vector3 localNormal, Vector3 point, out Vector2 projected)
@@ -64,9 +63,9 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static void InsertContact(in Vector3 slotSideEdgeCenter, in Vector3 slotCylinderEdgeAxis, float t,
-            in Vector3 hullFaceOrigin, in Vector3 slotHullFaceNormal, float inverseDepthDenominator,
-            in Matrix3x3 slotHullOrientation, in Vector3 slotOffsetB, int featureId,
+        static void InsertContact(Vector3 slotSideEdgeCenter, Vector3 slotCylinderEdgeAxis, float t,
+            Vector3 hullFaceOrigin, Vector3 slotHullFaceNormal, float inverseDepthDenominator,
+            in Matrix3x3 slotHullOrientation, Vector3 slotOffsetB, int featureId,
             ref Vector3Wide contactOffsetAWide, ref Vector<float> contactDepthWide, ref Vector<int> contactFeatureIdWide, ref Vector<int> contactExistsWide)
         {
             //Create max contact.
@@ -81,7 +80,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             GatherScatter.GetFirst(ref contactExistsWide) = -1;
         }
 
-        public unsafe void Test(ref CylinderWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationA, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static unsafe void Test(ref CylinderWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationA, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             Unsafe.SkipInit(out manifold);
             Matrix3x3Wide.CreateFromQuaternion(orientationA, out var cylinderOrientation);
@@ -407,12 +406,12 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             Vector3Wide.Add(manifold.OffsetA3, offset3, out manifold.OffsetA3);
         }
 
-        public void Test(ref CylinderWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static void Test(ref CylinderWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             throw new NotImplementedException();
         }
 
-        public void Test(ref CylinderWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static void Test(ref CylinderWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             throw new NotImplementedException();
         }

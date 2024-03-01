@@ -1,11 +1,6 @@
-﻿using BepuUtilities;
-using BepuUtilities.Memory;
-using BepuPhysics;
-using BepuPhysics.Collidables;
+﻿using BepuPhysics;
 using System;
 using System.Collections.Generic;
-using System.Numerics;
-using System.Text;
 using DemoContentLoader;
 
 namespace Demos.SpecializedTests
@@ -32,7 +27,7 @@ namespace Demos.SpecializedTests
                 {
                     for (int bodyIndex = 0; bodyIndex < set.Count; ++bodyIndex)
                     {
-                        motionStates.Add(set.IndexToHandle[bodyIndex].Value, set.SolverStates[bodyIndex].Motion);
+                        motionStates.Add(set.IndexToHandle[bodyIndex].Value, set.DynamicsState[bodyIndex].Motion);
                     }
                 }
             }

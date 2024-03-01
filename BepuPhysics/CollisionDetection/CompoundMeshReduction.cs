@@ -1,13 +1,9 @@
 ﻿using BepuPhysics.Collidables;
 using BepuUtilities;
-using BepuUtilities.Collections;
 using BepuUtilities.Memory;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace BepuPhysics.CollisionDetection
 {
@@ -33,19 +29,19 @@ namespace BepuPhysics.CollisionDetection
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void OnChildCompleted<TCallbacks>(ref PairContinuation report, ref ConvexContactManifold manifold, ref CollisionBatcher<TCallbacks> batcher)
+        public void OnChildCompleted<TCallbacks>(ref PairContinuation report, ref ConvexContactManifold manifold, ref CollisionBatcher<TCallbacks> batcher)
             where TCallbacks : struct, ICollisionCallbacks
         {
             Inner.OnChildCompleted(ref report, ref manifold, ref batcher);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void OnChildCompletedEmpty<TCallbacks>(ref PairContinuation report, ref CollisionBatcher<TCallbacks> batcher) where TCallbacks : struct, ICollisionCallbacks
+        public void OnUntestedChildCompleted<TCallbacks>(ref PairContinuation report, ref CollisionBatcher<TCallbacks> batcher) where TCallbacks : struct, ICollisionCallbacks
         {
-            Inner.OnChildCompletedEmpty(ref report, ref batcher);
+            Inner.OnUntestedChildCompleted(ref report, ref batcher);
         }
         
-        public unsafe bool TryFlush<TCallbacks>(int pairId, ref CollisionBatcher<TCallbacks> batcher) where TCallbacks : struct, ICollisionCallbacks
+        public bool TryFlush<TCallbacks>(int pairId, ref CollisionBatcher<TCallbacks> batcher) where TCallbacks : struct, ICollisionCallbacks
         {
             Debug.Assert(Inner.ChildCount > 0);
             if (Inner.CompletedChildCount == Inner.ChildCount)

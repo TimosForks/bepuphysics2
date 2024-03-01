@@ -1,7 +1,7 @@
 ﻿using BepuPhysics.Collidables;
 using BepuUtilities;
+using BepuUtilities.Memory;
 using System;
-using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
@@ -9,9 +9,9 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
 {
     public struct BoxConvexHullTester : IPairTester<BoxWide, ConvexHullWide, Convex4ContactManifoldWide>
     {
-        public int BatchSize => 16;
+        public static int BatchSize => 16;
 
-        public unsafe void Test(ref BoxWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationA, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static unsafe void Test(ref BoxWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationA, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             Unsafe.SkipInit(out manifold);
             Matrix3x3Wide.CreateFromQuaternion(orientationA, out var boxOrientation);
@@ -80,18 +80,39 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             Vector3Wide.Subtract(v1, boxFaceYOffset, out var v10);
             Vector3Wide.Add(v1, boxFaceYOffset, out var v11);
 
-            //To find the contact manifold, we'll clip the box edges against the hull face as usual, but we're dealing with potentially
-            //distinct convex hulls. Rather than vectorizing over the different hulls, we vectorize within each hull.
             Helpers.FillVectorWithLaneIndices(out var slotOffsetIndices);
             var boundingPlaneEpsilon = 1e-3f * epsilonScale;
-            //There can be no more than 8 contacts (provided there are no numerical errors); 2 per box edge.
-            var candidates = stackalloc ManifoldCandidateScalar[8];
+            Vector3* slotHullFaceNormals = stackalloc Vector3[Vector<float>.Count];
+            Vector3* slotLocalNormals = stackalloc Vector3[Vector<float>.Count];
+            Buffer<HullVertexIndex>* hullVertexIndices = stackalloc Buffer<HullVertexIndex>[Vector<float>.Count];
+            Unsafe.SkipInit(out Vector3Wide hullFaceNormal);
+            int maximumFaceVertexCount = 0;
             for (int slotIndex = 0; slotIndex < pairCount; ++slotIndex)
             {
                 if (inactiveLanes[slotIndex] < 0)
                     continue;
                 ref var hull = ref b.Hulls[slotIndex];
-                ConvexHullTestHelper.PickRepresentativeFace(ref hull, slotIndex, ref localNormal, closestOnHull, slotOffsetIndices, ref boundingPlaneEpsilon, out var slotFaceNormal, out var slotLocalNormal, out var bestFaceIndex);
+
+                ConvexHullTestHelper.PickRepresentativeFace(ref hull, slotIndex, ref localNormal, closestOnHull, slotOffsetIndices, ref boundingPlaneEpsilon, out slotHullFaceNormals[slotIndex], out slotLocalNormals[slotIndex], out var bestFaceIndex);
+                Vector3Wide.WriteSlot(slotHullFaceNormals[slotIndex], slotIndex, ref hullFaceNormal);
+                hull.GetVertexIndicesForFace(bestFaceIndex, out hullVertexIndices[slotIndex]);
+                var verticesInFace = hullVertexIndices[slotIndex].Length;
+                if (verticesInFace > maximumFaceVertexCount)
+                    maximumFaceVertexCount = verticesInFace;
+            }
+
+            //To find the contact manifold, we'll clip the box edges against the hull face as usual, but we're dealing with potentially
+            //distinct convex hulls. Rather than vectorizing over the different hulls, we vectorize within each hull.
+            //There can be no more than 8 contacts from edge intersections, but more can be generated from hull faces with many vertices.
+            int maximumContactCount = Math.Max(8, maximumFaceVertexCount);
+            var candidates = stackalloc ManifoldCandidateScalar[maximumContactCount];
+            for (int slotIndex = 0; slotIndex < pairCount; ++slotIndex)
+            {
+                if (inactiveLanes[slotIndex] < 0)
+                    continue;
+                ref var hull = ref b.Hulls[slotIndex];
+                var slotFaceNormal = slotHullFaceNormals[slotIndex];
+                var slotLocalNormal = slotLocalNormals[slotIndex];
 
                 //Test each face edge plane against the box face.
                 //Note that we do not use the faceNormal x edgeOffset edge plane, but rather edgeOffset x localNormal.
@@ -119,7 +140,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                 var edgePlaneNormalY = edgeDirectionZ * slotLocalNormalX - edgeDirectionX * slotLocalNormalZ;
                 var edgePlaneNormalZ = edgeDirectionX * slotLocalNormalY - edgeDirectionY * slotLocalNormalX;
 
-                hull.GetVertexIndicesForFace(bestFaceIndex, out var faceVertexIndices);
+                var faceVertexIndices = hullVertexIndices[slotIndex];
                 var previousIndex = faceVertexIndices[faceVertexIndices.Length - 1];
                 Vector3Wide.ReadSlot(ref hull.Points[previousIndex.BundleIndex], previousIndex.InnerIndex, out var hullFaceOrigin);
                 var previousVertex = hullFaceOrigin;
@@ -237,7 +258,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                     var startId = (previousIndex.BundleIndex << BundleIndexing.VectorShift) + previousIndex.InnerIndex;
                     var endId = (index.BundleIndex << BundleIndexing.VectorShift) + index.InnerIndex;
                     var baseFeatureId = (startId ^ endId) << 8;
-                    if (earliestExit >= latestEntry && candidateCount < 8)
+                    if (earliestExit >= latestEntry && candidateCount < maximumContactCount)
                     {
                         //Create max contact.
                         var point = hullEdgeOffset * earliestExit + previousVertex - hullFaceOrigin;
@@ -248,7 +269,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                         candidate.FeatureId = baseFeatureId + endId;
 
                     }
-                    if (latestEntry < earliestExit && latestEntry > 0 && candidateCount < 8)
+                    if (latestEntry < earliestExit && latestEntry > 0 && candidateCount < maximumContactCount)
                     {
                         //Create min contact.
                         var point = hullEdgeOffset * latestEntry + previousVertex - hullFaceOrigin;
@@ -263,7 +284,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                     previousIndex = index;
                     previousVertex = vertex;
                 }
-                if (candidateCount < 8)
+                if (candidateCount < maximumContactCount)
                 {
                     //Try adding the box vertex contacts. Project each vertex onto the hull face.
                     //t = dot(boxVertex - hullFaceVertex, hullFacePlaneNormal) / dot(hullFacePlaneNormal, localNormal) 
@@ -299,7 +320,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                         candidate.Y = projectedTangentY.X;
                         candidate.FeatureId = 0;
                     }
-                    if (candidateCount == 8)
+                    if (candidateCount == maximumContactCount)
                         goto SkipVertexCandidates;
                     if (maximumVertexContainmentDots.Y <= 0)
                     {
@@ -308,7 +329,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                         candidate.Y = projectedTangentY.Y;
                         candidate.FeatureId = 1;
                     }
-                    if (candidateCount == 8)
+                    if (candidateCount == maximumContactCount)
                         goto SkipVertexCandidates;
                     if (maximumVertexContainmentDots.Z <= 0)
                     {
@@ -317,7 +338,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                         candidate.Y = projectedTangentY.Z;
                         candidate.FeatureId = 2;
                     }
-                    if (candidateCount < 8 && maximumVertexContainmentDots.W <= 0)
+                    if (candidateCount < maximumContactCount && maximumVertexContainmentDots.W <= 0)
                     {
                         ref var candidate = ref candidates[candidateCount++];
                         candidate.X = projectedTangentX.W;
@@ -338,12 +359,12 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             Matrix3x3Wide.TransformWithoutOverlap(localNormal, hullOrientation, out manifold.Normal);
         }
 
-        public void Test(ref BoxWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static void Test(ref BoxWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             throw new NotImplementedException();
         }
 
-        public void Test(ref BoxWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static void Test(ref BoxWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             throw new NotImplementedException();
         }

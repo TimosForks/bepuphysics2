@@ -3,7 +3,6 @@ using BepuUtilities.Memory;
 using BepuPhysics.Collidables;
 using BepuPhysics.CollisionDetection;
 using System;
-using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -26,15 +25,15 @@ namespace BepuPhysics
         /// <summary>
         /// Angular velocity is directly integrated and does not change as the body pose changes. Does not conserve angular momentum.
         /// </summary>
-        Nonconserving,
+        Nonconserving = 0,
         /// <summary>
         /// Approximately conserves angular momentum by updating the angular velocity according to the change in orientation. Does a decent job for gyroscopes, but angular velocities will tend to drift towards a minimal inertia axis.
         /// </summary>
-        ConserveMomentum,
+        ConserveMomentum = 1,
         /// <summary>
         /// Approximately conserves angular momentum by including an implicit gyroscopic torque. Best option for Dzhanibekov effect simulation, but applies a damping effect that can make gyroscopes less useful.
         /// </summary>
-        ConserveMomentumWithGyroscopicTorque,
+        ConserveMomentumWithGyroscopicTorque = 2,
     }
 
     /// <summary>
@@ -100,7 +99,7 @@ namespace BepuPhysics
     public static class PoseIntegration
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void RotateInverseInertia(in Symmetric3x3 localInverseInertiaTensor, in Quaternion orientation, out Symmetric3x3 rotatedInverseInertiaTensor)
+        public static void RotateInverseInertia(in Symmetric3x3 localInverseInertiaTensor, Quaternion orientation, out Symmetric3x3 rotatedInverseInertiaTensor)
         {
             Matrix3x3.CreateFromQuaternion(orientation, out var orientationMatrix);
             //I^-1 = RT * Ilocal^-1 * R 
@@ -111,7 +110,7 @@ namespace BepuPhysics
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Integrate(in Vector3 position, in Vector3 linearVelocity, float dt, out Vector3 integratedPosition)
+        public static void Integrate(Vector3 position, Vector3 linearVelocity, float dt, out Vector3 integratedPosition)
         {
             position.Validate();
             linearVelocity.Validate();
@@ -120,7 +119,7 @@ namespace BepuPhysics
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Integrate(in Quaternion orientation, in Vector3 angularVelocity, float dt, out Quaternion integratedOrientation)
+        public static void Integrate(Quaternion orientation, Vector3 angularVelocity, float dt, out Quaternion integratedOrientation)
         {
             orientation.ValidateOrientation();
             angularVelocity.Validate();
@@ -254,7 +253,7 @@ namespace BepuPhysics
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void Integrate(in RigidPose pose, in BodyVelocity velocity, float dt, out RigidPose integratedPose)
+        public static void Integrate(in RigidPose pose, in BodyVelocity velocity, float dt, out RigidPose integratedPose)
         {
             Integrate(pose.Position, velocity.Linear, dt, out integratedPose.Position);
             Integrate(pose.Orientation, velocity.Angular, dt, out integratedPose.Orientation);
@@ -265,7 +264,7 @@ namespace BepuPhysics
     /// <summary>
     /// Handles body integration work that isn't bundled into the solver's execution. Predicts bounding boxes, integrates velocity and poses for unconstrained bodies, and does final post-substepping pose integration for constrained bodies.
     /// </summary>
-    public class PoseIntegrator<TCallbacks> : IPoseIntegrator where TCallbacks : IPoseIntegratorCallbacks
+    public unsafe class PoseIntegrator<TCallbacks> : IPoseIntegrator where TCallbacks : IPoseIntegratorCallbacks
     {
         Bodies bodies;
         Shapes shapes;
@@ -305,7 +304,7 @@ namespace BepuPhysics
             }
         }
 
-        unsafe void PredictBoundingBoxes(int startBundleIndex, int endBundleIndex, float dt, ref BoundingBoxBatcher boundingBoxBatcher, int workerIndex)
+        void PredictBoundingBoxes(int startBundleIndex, int endBundleIndex, float dt, ref BoundingBoxBatcher boundingBoxBatcher, int workerIndex)
         {
             var activities = bodies.ActiveSet.Activity;
             var collidables = bodies.ActiveSet.Collidables;
@@ -333,6 +332,8 @@ namespace BepuPhysics
                 {
                     integrationMask = Vector.AndNot(BundleIndexing.CreateMaskForCountInBundle(countInBundle), Bodies.IsKinematic(inertia));
                 }
+                //When the solver calls IntegrateVelocity, empty lanes are filled with -1. For consistent behavior at a trivial cost, we'll do the same here.
+                laneIndices = Vector.BitwiseOr(Vector.OnesComplement(integrationMask), laneIndices);
                 var sleepEnergy = velocity.Linear.LengthSquared() + velocity.Angular.LengthSquared();
 
                 //Note that we're not storing out the integrated velocities. The integrated velocities are only used for bounding box prediction.
@@ -397,7 +398,7 @@ namespace BepuPhysics
 
         void PredictBoundingBoxesWorker(int workerIndex)
         {
-            var boundingBoxUpdater = new BoundingBoxBatcher(bodies, shapes, broadPhase, threadDispatcher.GetThreadMemoryPool(workerIndex), cachedDt);
+            var boundingBoxUpdater = new BoundingBoxBatcher(bodies, shapes, broadPhase, threadDispatcher.WorkerPools[workerIndex], cachedDt);
             var bundleCount = BundleIndexing.GetBundleCount(bodies.ActiveSet.Count);
             while (TryGetJob(bundleCount, out var start, out var exclusiveEnd))
             {
@@ -447,7 +448,7 @@ namespace BepuPhysics
         /// Integrates the velocities of kinematic bodies as a prepass to the first substep during solving.
         /// Kinematics have to be integrated ahead of time since they don't block constraint batch membership; the same kinematic could appear in the batch multiple times.
         /// </summary>
-        internal unsafe void IntegrateKinematicVelocities(Buffer<int> bodyHandles, int bundleStartIndex, int bundleEndIndex, float substepDt, int workerIndex)
+        internal void IntegrateKinematicVelocities(Buffer<int> bodyHandles, int bundleStartIndex, int bundleEndIndex, float substepDt, int workerIndex)
         {
             var bodyCount = bodyHandles.Length;
             var bundleCount = BundleIndexing.GetBundleCount(bodyCount);
@@ -489,7 +490,7 @@ namespace BepuPhysics
         /// Integrates the poses *then* velocities of kinematic bodies as a prepass to the second or later substeps during solving.
         /// Kinematics have to be integrated ahead of time since they don't block constraint batch membership; the same kinematic could appear in the batch multiple times.
         /// </summary>
-        internal unsafe void IntegrateKinematicPosesAndVelocities(Buffer<int> bodyHandles, int bundleStartIndex, int bundleEndIndex, float substepDt, int workerIndex)
+        internal void IntegrateKinematicPosesAndVelocities(Buffer<int> bodyHandles, int bundleStartIndex, int bundleEndIndex, float substepDt, int workerIndex)
         {
             var bodyCount = bodyHandles.Length;
             var bundleCount = BundleIndexing.GetBundleCount(bodyCount);
@@ -533,7 +534,7 @@ namespace BepuPhysics
             }
         }
 
-        unsafe void IntegrateBundlesAfterSubstepping(ref IndexSet mergedConstrainedBodyHandles, int bundleStartIndex, int bundleEndIndex, float dt, float substepDt, int substepCount, int workerIndex)
+        void IntegrateBundlesAfterSubstepping(ref IndexSet mergedConstrainedBodyHandles, int bundleStartIndex, int bundleEndIndex, float dt, float substepDt, int substepCount, int workerIndex)
         {
             var bodyCount = bodies.ActiveSet.Count;
             var bundleCount = BundleIndexing.GetBundleCount(bodyCount);
@@ -613,7 +614,8 @@ namespace BepuPhysics
                     unconstrainedVelocityIntegrationMask = Vector.AndNot(unconstrainedMask, isKinematic);
                     anyBodyInBundleNeedsVelocityIntegration = Vector.LessThanAny(unconstrainedVelocityIntegrationMask, Vector<int>.Zero);
                 }
-                //We don't want to scatter velocities into any slots that don't want velocity writes. By setting all the bits in such lanes, velocity scatter will skip them.
+                //We don't want to scatter velocities into any slots that don't want velocity writes. By setting all the bits in such lanes, scatter will skip them.
+                //This will also keep the body indices passed into callbacks.IntegrateVelocity consistent with those provided during PredictBoundingBoxes and the solver (-1 for ignored slots).
                 var velocityMaskedBodyIndices = Vector.BitwiseOr(bodyIndices, Vector.OnesComplement(unconstrainedVelocityIntegrationMask));
 
                 if (anyBodyInBundleIsUnconstrained)
@@ -634,7 +636,7 @@ namespace BepuPhysics
 
                         if (anyBodyInBundleNeedsVelocityIntegration)
                         {
-                            callbacks.IntegrateVelocity(bodyIndices, position, orientation, localInertia, unconstrainedVelocityIntegrationMask, workerIndex, bundleEffectiveDt, ref velocity);
+                            callbacks.IntegrateVelocity(velocityMaskedBodyIndices, position, orientation, localInertia, unconstrainedVelocityIntegrationMask, workerIndex, bundleEffectiveDt, ref velocity);
                             //It would be annoying to make the user handle masking velocity writes to inactive lanes, so we handle it internally.
                             Vector3Wide.ConditionalSelect(unconstrainedVelocityIntegrationMask, velocity.Linear, previousVelocity.Linear, out velocity.Linear);
                             Vector3Wide.ConditionalSelect(unconstrainedVelocityIntegrationMask, velocity.Angular, previousVelocity.Angular, out velocity.Angular);

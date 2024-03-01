@@ -1,5 +1,4 @@
-﻿using System;
-using System.Numerics;
+﻿using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace BepuUtilities
@@ -12,7 +11,7 @@ namespace BepuUtilities
         public Vector<float> W;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Broadcast(in Quaternion source, out QuaternionWide broadcasted)
+        public static void Broadcast(Quaternion source, out QuaternionWide broadcasted)
         {
             broadcasted.X = new Vector<float>(source.X);
             broadcasted.Y = new Vector<float>(source.Y);
@@ -609,7 +608,7 @@ namespace BepuUtilities
         /// <param name="source">Quaternion to copy values from.</param>
         /// <param name="targetSlot">Wide quaternion to place values into.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteFirst(in Quaternion source, ref QuaternionWide targetSlot)
+        public static void WriteFirst(Quaternion source, ref QuaternionWide targetSlot)
         {
             GatherScatter.GetFirst(ref targetSlot.X) = source.X;
             GatherScatter.GetFirst(ref targetSlot.Y) = source.Y;
@@ -624,7 +623,7 @@ namespace BepuUtilities
         /// <param name="slotIndex">Index of the slot to write into.</param>
         /// <param name="target">Bundle to write the value into.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteSlot(in Quaternion source, int slotIndex, ref QuaternionWide target)
+        public static void WriteSlot(Quaternion source, int slotIndex, ref QuaternionWide target)
         {
             WriteFirst(source, ref GatherScatter.GetOffsetInstance(ref target, slotIndex));
         }

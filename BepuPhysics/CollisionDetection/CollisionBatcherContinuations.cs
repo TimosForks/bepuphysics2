@@ -1,21 +1,47 @@
 ﻿using BepuUtilities.Memory;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace BepuPhysics.CollisionDetection
 {
+    /// <summary>
+    /// Defines a type which includes information necessary to apply some form of post processing to a collision test result.
+    /// </summary>
     public interface ICollisionTestContinuation
     {
+        /// <summary>
+        /// Creates a collision test continuation with the given number of slots for subpairs.
+        /// </summary>
+        /// <param name="slots">Number of subpair slots to include in the continuation.</param>
+        /// <param name="pool">Pool to take resources from.</param>
         void Create(int slots, BufferPool pool);
 
-        unsafe void OnChildCompleted<TCallbacks>(ref PairContinuation report, ref ConvexContactManifold manifold, ref CollisionBatcher<TCallbacks> batcher)
+        /// <summary>
+        /// Handles what to do next when the child pair has finished execution and the resulting manifold is available.
+        /// </summary>
+        /// <typeparam name="TCallbacks">Type of the callbacks used in the batcher.</typeparam>
+        /// <param name="report">Continuation instance being considered.</param>
+        /// <param name="manifold">Contact manifold for the child pair.</param>
+        /// <param name="batcher">Collision batcher processing the pair.</param>
+        void OnChildCompleted<TCallbacks>(ref PairContinuation report, ref ConvexContactManifold manifold, ref CollisionBatcher<TCallbacks> batcher)
             where TCallbacks : struct, ICollisionCallbacks;
-        unsafe void OnChildCompletedEmpty<TCallbacks>(ref PairContinuation report, ref CollisionBatcher<TCallbacks> batcher)
+        /// <summary>
+        /// Handles what to do next when the child pair was rejected for testing, and no manifold exists.
+        /// </summary>
+        /// <typeparam name="TCallbacks">Type of the callbacks used in the batcher.</typeparam>
+        /// <param name="report">Continuation instance being considered.</param>
+        /// <param name="batcher">Collision batcher processing the pair.</param>
+        void OnUntestedChildCompleted<TCallbacks>(ref PairContinuation report, ref CollisionBatcher<TCallbacks> batcher)
             where TCallbacks : struct, ICollisionCallbacks;
-        unsafe bool TryFlush<TCallbacks>(int pairId, ref CollisionBatcher<TCallbacks> batcher)
+
+        /// <summary>
+        /// Checks if the parent pair is complete and should be flushed.
+        /// </summary>
+        /// <typeparam name="TCallbacks">Type of the callbacks used in the batcher.</typeparam>
+        /// <param name="pairId">Id of the pair to attempt to flush.</param>
+        /// <param name="batcher">Collision batcher processing the pair.</param>
+        /// <returns>True if the pair was done and got flushed, false otherwise.</returns>
+        bool TryFlush<TCallbacks>(int pairId, ref CollisionBatcher<TCallbacks> batcher)
             where TCallbacks : struct, ICollisionCallbacks;
 
 
@@ -29,19 +55,19 @@ namespace BepuPhysics.CollisionDetection
         /// <summary>
         /// Marks a pair as requiring no further processing before being reported to the user supplied continuations.
         /// </summary>
-        Direct,
+        Direct = 0,
         /// <summary>
         /// Marks a pair as part of a set of a higher (potentially multi-manifold) pair, potentially requiring contact reduction.
         /// </summary>
-        NonconvexReduction,
+        NonconvexReduction = 1,
         /// <summary>
         /// Marks a pair as a part of a set of mesh-convex collisions, potentially requiring mesh boundary smoothing.
         /// </summary>
-        MeshReduction,
+        MeshReduction = 2,
         /// <summary>
         /// Marks a pair as a part of a set of mesh-convex collisions spawned by a mesh-compound pair, potentially requiring mesh boundary smoothing.
         /// </summary>
-        CompoundMeshReduction,
+        CompoundMeshReduction = 3,
         //TODO: We don't yet support boundary smoothing for meshes or convexes. Most likely, boundary smoothed convexes won't make it into the first release of the engine at all;
         //they're a pretty experimental feature with limited applications.
         ///// <summary>
@@ -57,19 +83,40 @@ namespace BepuPhysics.CollisionDetection
         public int ChildA;
         public int ChildB;
         public uint Packed;
+
+        /// <summary>
+        /// Covers bits [0, 20) in the packed representation. Refers to the child pair index in a subtask generating collision task that generated this continuation.
+        /// </summary>
+        public const int ChildIndexBits = 20;
+        /// <summary>
+        /// Covers bits [20, 30) in the packed representation. Refers to the index of a subpair in a continuation processor.
+        /// Maximum number should be equal to the sum of the batch sizes subtask generating collision tasks, which as of this writing is 384, but we'll include a little buffer.
+        /// </summary>
+        public const int ContinuationIndexBits = 10;
+        /// <summary>
+        /// Covers bits [30, 32) in the packed representation. Refers to which continuation processor should be used for this subpair.
+        /// </summary>
+        public const int ContinuationTypeBits = 2;
+
+        public const int ExclusiveMaximumChildIndex = 1 << ChildIndexBits;
+        public const int ExclusiveMaximumContinuationIndex = 1 << ContinuationIndexBits;
+        public const int ExclusiveMaximumContinuationType = 1 << ContinuationTypeBits;
+
+        const int TypeShift = ChildIndexBits + ContinuationIndexBits;
+        const int IndexShift = ChildIndexBits;
+        const int IndexMask = (1 << ContinuationIndexBits) - 1;
+        const int ChildIndexMask = (1 << ChildIndexBits) - 1;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public PairContinuation(int pairId, int childA, int childB, CollisionContinuationType continuationType, int continuationIndex, int continuationChildIndex)
         {
             PairId = pairId;
             ChildA = childA;
             ChildB = childB;
-            //continuationChildIndex: [0, 17]
-            //continuationIndex: [18, 27]
-            //continuationType:  [28, 31]
-            Debug.Assert(continuationIndex < (1 << 10));
-            Debug.Assert(continuationChildIndex < (1 << 18));
-            Debug.Assert((int)continuationType < (1 << 4));
-            Packed = (uint)(((int)continuationType << 28) | (continuationIndex << 18) | continuationChildIndex);
+            Debug.Assert(continuationChildIndex < ExclusiveMaximumChildIndex);
+            Debug.Assert(continuationIndex < ExclusiveMaximumContinuationIndex);
+            Debug.Assert((int)continuationType < ExclusiveMaximumContinuationType);
+            Packed = (uint)(((int)continuationType << TypeShift) | (continuationIndex << IndexShift) | continuationChildIndex);
         }
         public PairContinuation(int pairId)
         {
@@ -79,9 +126,9 @@ namespace BepuPhysics.CollisionDetection
             Packed = 0;
         }
 
-        public CollisionContinuationType Type { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return (CollisionContinuationType)(Packed >> 28); } }
-        public int Index { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return (int)((Packed >> 18) & ((1 << 10) - 1)); } }
-        public int ChildIndex { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return (int)(Packed & ((1 << 18) - 1)); } }
+        public CollisionContinuationType Type { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return (CollisionContinuationType)(Packed >> TypeShift); } }
+        public int Index { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return (int)((Packed >> IndexShift) & IndexMask); } }
+        public int ChildIndex { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return (int)(Packed & ChildIndexMask); } }
     }
 
     public struct BatcherContinuations<T> where T : unmanaged, ICollisionTestContinuation
@@ -110,11 +157,24 @@ namespace BepuPhysics.CollisionDetection
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void ContributeChildToContinuation<TCallbacks>(ref PairContinuation continuation, ref ConvexContactManifold manifold, ref CollisionBatcher<TCallbacks> batcher)
+        public void ContributeChildToContinuation<TCallbacks>(ref PairContinuation continuation, ref ConvexContactManifold manifold, ref CollisionBatcher<TCallbacks> batcher)
             where TCallbacks : struct, ICollisionCallbacks
         {
             ref var slot = ref Continuations[continuation.Index];
             slot.OnChildCompleted(ref continuation, ref manifold, ref batcher);
+            if (slot.TryFlush(continuation.PairId, ref batcher))
+            {
+                //The entire continuation has completed; free the slot.
+                IdPool.Return(continuation.Index, batcher.Pool);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ContributeUntestedChildToContinuation<TCallbacks>(ref PairContinuation continuation, ref CollisionBatcher<TCallbacks> batcher)
+            where TCallbacks : struct, ICollisionCallbacks
+        {
+            ref var slot = ref Continuations[continuation.Index];
+            slot.OnUntestedChildCompleted(ref continuation, ref batcher);
             if (slot.TryFlush(continuation.PairId, ref batcher))
             {
                 //The entire continuation has completed; free the slot.

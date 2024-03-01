@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
+﻿using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace DemoContentLoader
 {
@@ -30,7 +27,7 @@ namespace DemoContentLoader
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Write(BinaryWriter writer, in Vector3 v)
+        public static void Write(BinaryWriter writer, Vector3 v)
         {
             writer.Write(v.X);
             writer.Write(v.Y);

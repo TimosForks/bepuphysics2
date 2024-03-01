@@ -3,8 +3,6 @@ using BepuUtilities.Collections;
 using BepuUtilities.Memory;
 using System;
 using System.Diagnostics;
-using System.Linq;
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -40,9 +38,9 @@ namespace BepuPhysics.Trees
             /// </summary>
             /// <param name="overlapHandlers">Callbacks used to handle individual overlaps detected by the self test.</param>
             /// <param name="threadCount">Number of threads to prepare jobs for.</param>
-            public unsafe void PrepareJobs(ref Tree treeA, ref Tree treeB, TOverlapHandler[] overlapHandlers, int threadCount)
+            public void PrepareJobs(ref Tree treeA, ref Tree treeB, TOverlapHandler[] overlapHandlers, int threadCount)
             {
-                if (treeA.leafCount == 0 || treeB.leafCount == 0)
+                if (treeA.LeafCount == 0 || treeB.LeafCount == 0)
                 {
                     //If either tree has zero leaves, no intertree test is required.
                     //Since this context has a count property for scheduling purposes that reads the jobs list, clear it to ensure no spurious jobs are executed. 
@@ -50,28 +48,28 @@ namespace BepuPhysics.Trees
                     return;
                 }
                 Debug.Assert(overlapHandlers.Length >= threadCount);
-                const float jobMultiplier = 1.5f;
+                const float jobMultiplier = 8f;
                 var targetJobCount = Math.Max(1, jobMultiplier * threadCount);
                 //TODO: Not a lot of thought was put into this leaf threshold for intertree. Probably better options.
-                leafThreshold = (int)((treeA.leafCount + treeB.leafCount) / targetJobCount);
+                leafThreshold = (int)((treeA.LeafCount + treeB.LeafCount) / targetJobCount);
                 jobs = new QuickList<Job>((int)(targetJobCount * 2), Pool);
                 NextNodePair = -1;
                 this.OverlapHandlers = overlapHandlers;
                 this.TreeA = treeA;
                 this.TreeB = treeB;
                 //Collect jobs.
-                if (treeA.leafCount >= 2 && treeB.leafCount >= 2)
+                if (treeA.LeafCount >= 2 && treeB.LeafCount >= 2)
                 {
                     //Both trees have complete nodes; we can use a general case.
                     GetJobsBetweenDifferentNodes(ref treeA.Nodes[0], ref treeB.Nodes[0], ref OverlapHandlers[0]);
                 }
-                else if (treeA.leafCount == 1 && treeB.leafCount >= 2)
+                else if (treeA.LeafCount == 1 && treeB.LeafCount >= 2)
                 {
                     //Tree A is degenerate; needs a special case.
                     ref var a = ref treeA.Nodes[0];
                     ref var b = ref treeB.Nodes[0];
-                    var aaIntersects = Intersects(a.A, b.A);
-                    var abIntersects = Intersects(a.A, b.B);
+                    var aaIntersects = BoundingBox.IntersectsUnsafe(a.A, b.A);
+                    var abIntersects = BoundingBox.IntersectsUnsafe(a.A, b.B);
                     if (aaIntersects)
                     {
                         DispatchTestForNodes(ref a.A, ref b.A, ref OverlapHandlers[0]);
@@ -81,13 +79,13 @@ namespace BepuPhysics.Trees
                         DispatchTestForNodes(ref a.A, ref b.B, ref OverlapHandlers[0]);
                     }
                 }
-                else if (treeA.leafCount >= 2 && treeB.leafCount == 1)
+                else if (treeA.LeafCount >= 2 && treeB.LeafCount == 1)
                 {
                     //Tree B is degenerate; needs a special case.
                     ref var a = ref treeA.Nodes[0];
                     ref var b = ref treeB.Nodes[0];
-                    var aaIntersects = Intersects(a.A, b.A);
-                    var baIntersects = Intersects(a.B, b.A);
+                    var aaIntersects = BoundingBox.IntersectsUnsafe(a.A, b.A);
+                    var baIntersects = BoundingBox.IntersectsUnsafe(a.B, b.A);
                     if (aaIntersects)
                     {
                         DispatchTestForNodes(ref a.A, ref b.A, ref OverlapHandlers[0]);
@@ -99,8 +97,8 @@ namespace BepuPhysics.Trees
                 }
                 else
                 {
-                    Debug.Assert(treeA.leafCount == 1 && treeB.leafCount == 1);
-                    if (Intersects(treeA.Nodes[0].A, treeB.Nodes[0].A))
+                    Debug.Assert(treeA.LeafCount == 1 && treeB.LeafCount == 1);
+                    if (BoundingBox.IntersectsUnsafe(treeA.Nodes[0].A, treeB.Nodes[0].A))
                     {
                         DispatchTestForNodes(ref treeA.Nodes[0].A, ref treeB.Nodes[0].A, ref OverlapHandlers[0]);
                     }
@@ -118,7 +116,7 @@ namespace BepuPhysics.Trees
                     jobs.Dispose(Pool);
             }
 
-            public unsafe void ExecuteJob(int jobIndex, int workerIndex)
+            public void ExecuteJob(int jobIndex, int workerIndex)
             {
                 ref var overlap = ref jobs[jobIndex];
                 if (overlap.A >= 0)
@@ -134,7 +132,7 @@ namespace BepuPhysics.Trees
                         var leafIndex = Encode(overlap.B);
                         ref var leaf = ref TreeB.Leaves[leafIndex];
                         ref var childOwningLeaf = ref Unsafe.Add(ref TreeB.Nodes[leaf.NodeIndex].A, leaf.ChildIndex);
-                        TreeA.TestNodeAgainstLeaf(overlap.A, leafIndex, ref childOwningLeaf.Min, ref childOwningLeaf.Max, ref OverlapHandlers[workerIndex]);
+                        TreeA.TestNodeAgainstLeaf(overlap.A, leafIndex, ref childOwningLeaf, ref OverlapHandlers[workerIndex]);
                     }
                 }
                 else
@@ -143,7 +141,7 @@ namespace BepuPhysics.Trees
                     var leafIndex = Encode(overlap.A);
                     ref var leaf = ref TreeA.Leaves[leafIndex];
                     ref var childOwningLeaf = ref Unsafe.Add(ref TreeA.Nodes[leaf.NodeIndex].A, leaf.ChildIndex);
-                    TreeA.TestLeafAgainstNode(leafIndex, ref childOwningLeaf.Min, ref childOwningLeaf.Max, overlap.B, ref TreeB, ref OverlapHandlers[workerIndex]);
+                    TreeA.TestLeafAgainstNode(leafIndex, ref childOwningLeaf, overlap.B, ref TreeB, ref OverlapHandlers[workerIndex]);
 
                     //NOTE THAT WE DO NOT HANDLE THE CASE THAT BOTH A AND B ARE LEAVES HERE.
                     //The collection routine should take care of that, since it has more convenient access to bounding boxes and because a single test isn't worth an atomic increment.
@@ -153,7 +151,7 @@ namespace BepuPhysics.Trees
             /// Executes a single worker of the multithreaded self test.
             /// </summary>
             /// <param name="workerIndex">Index of the worker executing this set of tests.</param>
-            public unsafe void PairTest(int workerIndex)
+            public void PairTest(int workerIndex)
             {
                 Debug.Assert(workerIndex >= 0 && workerIndex < OverlapHandlers.Length);
                 int nextNodePairIndex;
@@ -164,7 +162,7 @@ namespace BepuPhysics.Trees
                 }
             }
 
-            unsafe void DispatchTestForLeaf(ref Tree nodeOwner, int leafIndex, ref Vector3 leafMin, ref Vector3 leafMax, int nodeIndex, int nodeLeafCount, ref TOverlapHandler results)
+            void DispatchTestForLeaf(ref Tree nodeOwner, int leafIndex, ref NodeChild leafChild, int nodeIndex, int nodeLeafCount, ref TOverlapHandler results)
             {
                 if (nodeIndex < 0)
                 {
@@ -185,11 +183,11 @@ namespace BepuPhysics.Trees
                             jobs.Add(new Job { A = Encode(leafIndex), B = nodeIndex }, Pool);
                     }
                     else
-                        TestLeafAgainstNode(ref nodeOwner, leafIndex, ref leafMin, ref leafMax, nodeIndex, ref results);
+                        TestLeafAgainstNode(ref nodeOwner, leafIndex, ref leafChild, nodeIndex, ref results);
                 }
             }
 
-            unsafe void TestLeafAgainstNode(ref Tree nodeOwner, int leafIndex, ref Vector3 leafMin, ref Vector3 leafMax, int nodeIndex, ref TOverlapHandler results)
+            void TestLeafAgainstNode(ref Tree nodeOwner, int leafIndex, ref NodeChild leafChild, int nodeIndex, ref TOverlapHandler results)
             {
                 ref var node = ref nodeOwner.Nodes[nodeIndex];
                 ref var a = ref node.A;
@@ -200,20 +198,20 @@ namespace BepuPhysics.Trees
                 //TODO: this is some pretty questionable microtuning. It's not often that the post-leaf-found recursion will be long enough to evict L1. Definitely test it.
                 var bIndex = b.Index;
                 var bLeafCount = b.LeafCount;
-                var aIntersects = BoundingBox.Intersects(leafMin, leafMax, a.Min, a.Max);
-                var bIntersects = BoundingBox.Intersects(leafMin, leafMax, b.Min, b.Max);
+                var aIntersects = BoundingBox.IntersectsUnsafe(leafChild, a);
+                var bIntersects = BoundingBox.IntersectsUnsafe(leafChild, b);
                 if (aIntersects)
                 {
-                    DispatchTestForLeaf(ref nodeOwner, leafIndex, ref leafMin, ref leafMax, a.Index, a.LeafCount, ref results);
+                    DispatchTestForLeaf(ref nodeOwner, leafIndex, ref leafChild, a.Index, a.LeafCount, ref results);
                 }
                 if (bIntersects)
                 {
-                    DispatchTestForLeaf(ref nodeOwner, leafIndex, ref leafMin, ref leafMax, bIndex, bLeafCount, ref results);
+                    DispatchTestForLeaf(ref nodeOwner, leafIndex, ref leafChild, bIndex, bLeafCount, ref results);
                 }
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            unsafe void DispatchTestForNodes(ref NodeChild a, ref NodeChild b, ref TOverlapHandler results)
+            void DispatchTestForNodes(ref NodeChild a, ref NodeChild b, ref TOverlapHandler results)
             {
                 if (a.Index >= 0)
                 {
@@ -228,13 +226,13 @@ namespace BepuPhysics.Trees
                     else
                     {
                         //leaf B versus node A.
-                        TestLeafAgainstNode(ref TreeA, Encode(b.Index), ref b.Min, ref b.Max, a.Index, ref results);
+                        TestLeafAgainstNode(ref TreeA, Encode(b.Index), ref b, a.Index, ref results);
                     }
                 }
                 else if (b.Index >= 0)
                 {
                     //leaf A versus node B.
-                    TestLeafAgainstNode(ref TreeB, Encode(a.Index), ref a.Min, ref a.Max, b.Index, ref results);
+                    TestLeafAgainstNode(ref TreeB, Encode(a.Index), ref a, b.Index, ref results);
                 }
                 else
                 {
@@ -243,7 +241,7 @@ namespace BepuPhysics.Trees
                 }
             }
 
-            unsafe void GetJobsBetweenDifferentNodes(ref Node a, ref Node b, ref TOverlapHandler results)
+            void GetJobsBetweenDifferentNodes(ref Node a, ref Node b, ref TOverlapHandler results)
             {
                 //There are no shared children, so test them all.
 
@@ -251,10 +249,10 @@ namespace BepuPhysics.Trees
                 ref var ab = ref a.B;
                 ref var ba = ref b.A;
                 ref var bb = ref b.B;
-                var aaIntersects = Intersects(aa, ba);
-                var abIntersects = Intersects(aa, bb);
-                var baIntersects = Intersects(ab, ba);
-                var bbIntersects = Intersects(ab, bb);
+                var aaIntersects = BoundingBox.IntersectsUnsafe(aa, ba);
+                var abIntersects = BoundingBox.IntersectsUnsafe(aa, bb);
+                var baIntersects = BoundingBox.IntersectsUnsafe(ab, ba);
+                var bbIntersects = BoundingBox.IntersectsUnsafe(ab, bb);
 
                 if (aaIntersects)
                 {

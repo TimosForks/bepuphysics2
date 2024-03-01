@@ -4,7 +4,6 @@ using BepuUtilities.Collections;
 using BepuUtilities.Memory;
 using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -13,7 +12,7 @@ namespace BepuPhysics
     /// <summary>
     /// Handles the movement of constraints from higher indexed batches into lower indexed batches to avoid accumulating a bunch of unnecessary ConstraintBatches.
     /// </summary>
-    public class BatchCompressor
+    public unsafe class BatchCompressor
     {
         //We want to keep removes as fast as possible. So, when removing constraints, no attempt is made to pull constraints from higher constraint batches into the revealed slot.
         //Over time, this could result in lots of extra constraint batches that ruin multithreading performance.
@@ -108,13 +107,12 @@ namespace BepuPhysics
         }
 
 
-
         void AnalysisWorker(int workerIndex)
         {
             int jobIndex;
             while ((jobIndex = Interlocked.Increment(ref analysisJobIndex)) < analysisJobs.Count)
             {
-                DoJob(ref analysisJobs[jobIndex], workerIndex, threadDispatcher.GetThreadMemoryPool(workerIndex));
+                DoJob(ref analysisJobs[jobIndex], workerIndex, threadDispatcher.WorkerPools[workerIndex]);
             }
         }
 
@@ -127,7 +125,7 @@ namespace BepuPhysics
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe void TryToFindBetterBatchForConstraint(
+        private void TryToFindBetterBatchForConstraint(
             BufferPool pool, ref QuickList<Compression> compressions, ref TypeBatch typeBatch, int* bodyHandles, ref ActiveConstraintDynamicBodyHandleCollector handleAccumulator, TypeProcessor typeProcessor, int constraintIndex)
         {
             handleAccumulator.Count = 0;
@@ -145,7 +143,7 @@ namespace BepuPhysics
         }
 
 
-        unsafe void DoJob(ref AnalysisRegion region, int workerIndex, BufferPool pool)
+        void DoJob(ref AnalysisRegion region, int workerIndex, BufferPool pool)
         {
             ref var compressions = ref this.workerCompressions[workerIndex];
             ref var batch = ref Solver.ActiveSet.Batches[nextBatchIndex];
@@ -197,7 +195,7 @@ namespace BepuPhysics
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe void ApplyCompression(int sourceBatchIndex, ref ConstraintBatch sourceBatch, ref Compression compression)
+        private void ApplyCompression(int sourceBatchIndex, ref ConstraintBatch sourceBatch, ref Compression compression)
         {
             var constraintLocation = Solver.HandleToConstraint[compression.ConstraintHandle.Value];
             var typeProcessor = Solver.TypeProcessors[constraintLocation.TypeId];
@@ -246,7 +244,7 @@ namespace BepuPhysics
             for (int i = 0; i < workerCount; ++i)
             {
                 //Be careful: the jobs may require resizes on the compression count list. That requires the use of per-worker pools.
-                workerCompressions[i] = new QuickList<Compression>(Math.Max(8, maximumCompressionCount), threadDispatcher == null ? pool : threadDispatcher.GetThreadMemoryPool(i));
+                workerCompressions[i] = new QuickList<Compression>(Math.Max(8, maximumCompressionCount), threadDispatcher == null ? pool : threadDispatcher.WorkerPools[i]);
             }
 
             //In any given compression attempt, we only optimize over one ConstraintBatch.
@@ -401,11 +399,16 @@ namespace BepuPhysics
             //var applyTime = 1e6 * (applyEnd - applyStart) / Stopwatch.Frequency;
             //Console.WriteLine($"Apply time (us): {applyTime}, per applied: {applyTime / compressionsApplied}, (maximum: {maximumCompressionCount})");
 
-            for (int i = 0; i < workerCount; ++i)
+            if (threadDispatcher == null)
+                workerCompressions[0].Dispose(pool);
+            else
             {
-                //Be careful: the jobs may require resizes on the compression count list. That requires the use of per-worker pools.
-                workerCompressions[i].Dispose((threadDispatcher == null ? pool : threadDispatcher.GetThreadMemoryPool(i)));
+                for (int i = 0; i < workerCount; ++i)
+                {
+                    workerCompressions[i].Dispose(threadDispatcher.WorkerPools[i]);
+                }
             }
+
             pool.Return(ref workerCompressions);
         }
 

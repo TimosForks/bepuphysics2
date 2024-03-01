@@ -1,15 +1,12 @@
 ﻿using BepuPhysics.Collidables;
-using BepuPhysics.Constraints;
-using BepuUtilities;
-using BepuUtilities.Memory;
-using System.Numerics;
-using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace BepuPhysics
 {
     /// <summary>
     /// Describes the thresholds for a body going to sleep.
     /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
     public struct BodyActivityDescription
     {
         /// <summary>
@@ -37,7 +34,7 @@ namespace BepuPhysics
         /// <summary>
         /// Creates a body activity description. Uses a <see cref="MinimumTimestepCountUnderThreshold"/> of 32.
         /// </summary>
-        /// <param name="sleepThreshold">Threshold of squared velocity under which the body is allowed to go to sleep. This is compared against dot(linearVelocity, linearVelocity) + dot(angularVelocity, angularVelocity).</param>
+        /// <param name="sleepThreshold">Threshold of squared velocity under which the body is allowed to go to sleep. This is compared against dot(linearVelocity, linearVelocity) + dot(angularVelocity, angularVelocity).
         /// Note that the body is not guaranteed to go to sleep immediately after meeting this minimum.</param>
         public static implicit operator BodyActivityDescription(float sleepThreshold)
         {
@@ -48,6 +45,7 @@ namespace BepuPhysics
     /// <summary>
     /// Describes a body's state.
     /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
     public struct BodyDescription
     {
         /// <summary>

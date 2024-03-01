@@ -10,18 +10,15 @@ using BepuUtilities.Memory;
 using BepuUtilities.Collections;
 using System.Runtime.CompilerServices;
 using BepuPhysics.CollisionDetection;
-using BepuPhysics.Trees;
 using DemoRenderer.UI;
-using DemoRenderer.Constraints;
 using System.Threading;
-using Demos.SpecializedTests;
 using DemoContentLoader;
 
 namespace Demos.SpecializedTests
 {
     public class VolumeQueryTests : Demo
     {
-        public unsafe struct NoCollisionCallbacks : INarrowPhaseCallbacks
+        public struct NoCollisionCallbacks : INarrowPhaseCallbacks
         {
             public void Initialize(Simulation simulation)
             {
@@ -40,7 +37,7 @@ namespace Demos.SpecializedTests
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public unsafe bool ConfigureContactManifold<TManifold>(int workerIndex, CollidablePair pair, ref TManifold manifold, out PairMaterialProperties pairMaterial) where TManifold : unmanaged, IContactManifold<TManifold>
+            public bool ConfigureContactManifold<TManifold>(int workerIndex, CollidablePair pair, ref TManifold manifold, out PairMaterialProperties pairMaterial) where TManifold : unmanaged, IContactManifold<TManifold>
             {
                 pairMaterial = new PairMaterialProperties();
                 return false;
@@ -56,7 +53,7 @@ namespace Demos.SpecializedTests
             {
             }
         }
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(-20f, 13, -20f);
             camera.Yaw = MathHelper.Pi * 3f / 4;
@@ -130,7 +127,7 @@ namespace Demos.SpecializedTests
         QuickList<BoundingBox> queryBoxes;
 
 
-        class BoxQueryAlgorithm
+        unsafe class BoxQueryAlgorithm
         {
             public string Name;
             public int IntersectionCount;
@@ -217,7 +214,7 @@ namespace Demos.SpecializedTests
 
         bool shouldUseMultithreading = true;
 
-        public unsafe override void Update(Window window, Camera camera, Input input, float dt)
+        public override void Update(Window window, Camera camera, Input input, float dt)
         {
             base.Update(window, camera, input, dt);
 

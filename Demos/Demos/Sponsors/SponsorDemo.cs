@@ -3,7 +3,6 @@ using DemoRenderer;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using System.Text;
 using BepuPhysics;
 using DemoRenderer.UI;
 using System.IO;
@@ -63,6 +62,8 @@ namespace Demos.Demos.Sponsors
             sponsors0.Add("C. S.");
             sponsors0.Add("R. W.");
             sponsors0.Add("AshleighAdams");
+            sponsors0.Add("LoicBaumann");
+            sponsors0.Add("Slayuh9");
 
             //These supporters are those who gave 10 dollars a month (or historical backers of roughly equivalent or greater total contribution).
             //They get a poorly drawn animal!
@@ -81,6 +82,9 @@ namespace Demos.Demos.Sponsors
             Add(sponsors1, "Creative-House.org", @"Content\Sponsors\handicat.png", content, surface);
             Add(sponsors1, "vietnt", @"Content\Sponsors\raisondetre.png", content, surface);
             Add(sponsors1, "demiurghg", @"Content\Sponsors\ifiwereatardigrade.png", content, surface);
+            Add(sponsors1, "JohnGert", @"Content\Sponsors\bedtimeforopossum.png", content, surface);
+            Add(sponsors1, "Claytonious", @"Content\Sponsors\beaverboss.png", content, surface);
+            Add(sponsors1, "Damian", @"Content\Sponsors\marmottourism.png", content, surface);
 
             //These supporters are those who gave 50 dollars a month (or historical backers of roughly equivalent or greater total contribution).
             //They get a larger entry, a bit more text if desired, and a physically simulated entry in this demo.
@@ -92,6 +96,7 @@ namespace Demos.Demos.Sponsors
             Add(sponsors2, @"A. K. D.", @"Content\Sponsors\behattedpenguin.png", content, surface);
             Add(sponsors2, @"Cornmaiden xoxoxo", @"Content\Sponsors\healthyostrich.png", content, surface);
             Add(sponsors2, @"F.", @"Content\Sponsors\tootbush.png", content, surface);
+            Add(sponsors2, "G. T.", @"Content\Sponsors\ladybugwouldpreferlandvaluetax.png", content, surface);
 
             //These supporters are those who gave 1000 dollars a month (or historical backers of roughly equivalent or greater total contribution).
             Add(sponsors3, @"Neos VR", @"Content\Sponsors\spooky.png", content, surface);
@@ -111,7 +116,7 @@ namespace Demos.Demos.Sponsors
             characterControllers = new CharacterControllers(BufferPool);
             Simulation = Simulation.Create(BufferPool, new CharacterNarrowphaseCallbacks(characterControllers), new DemoPoseIntegratorCallbacks(new Vector3(0, -10, 0)), new SolveDescription(8, 1));
 
-            DemoMeshHelper.LoadModel(content, BufferPool, @"Content\newt.obj", new Vector3(-10, 10, -10), out var newtMesh);
+            var newtMesh = DemoMeshHelper.LoadModel(content, BufferPool, @"Content\newt.obj", new Vector3(-10, 10, -10));
             var newtShape = Simulation.Shapes.Add(newtMesh);
             newts = new QuickList<SponsorNewt>(sponsors2.Count, BufferPool);
             newtArenaMin = new Vector2(-100);
@@ -235,7 +240,7 @@ namespace Demos.Demos.Sponsors
             }
             for (int i = 0; i < characterAIs.Count; ++i)
             {
-                characterAIs[i].Update(characterControllers, Simulation, ref newts, newtArenaMin, newtArenaMax, random);
+                characterAIs[i].Update(characterControllers, Simulation, ref newts, random);
             }
             simulationTime += TimestepDuration;
             realTime += dt;

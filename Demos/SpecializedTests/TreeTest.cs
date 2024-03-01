@@ -1,19 +1,14 @@
 ﻿using BepuUtilities;
 using BepuUtilities.Collections;
 using BepuUtilities.Memory;
-using BepuPhysics.CollisionDetection;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Text;
 using BepuPhysics.Trees;
 
 namespace Demos.SpecializedTests
 {
-    public static class TreeTest
+    public unsafe static class TreeTest
     {
         public static void Test()
         {
@@ -53,7 +48,7 @@ namespace Demos.SpecializedTests
 
             for (int i = prebuiltCount; i < leafCount; ++i)
             {
-                tree.Add(ref leafBounds[i], pool);
+                tree.Add(leafBounds[i], pool);
             }
             tree.Validate();
 
@@ -110,7 +105,7 @@ namespace Demos.SpecializedTests
                         var indexInRemovedList = random.Next(removedLeafHandles.Count);
                         var handleToAdd = removedLeafHandles[indexInRemovedList];
                         removedLeafHandles.FastRemoveAt(indexInRemovedList);
-                        var leafIndex = tree.Add(ref leafBounds[handleToAdd], pool);
+                        var leafIndex = tree.Add(leafBounds[handleToAdd], pool);
                         leafIndexToHandle[leafIndex] = handleToAdd;
                         handleToLeafIndex[handleToAdd] = leafIndex;
 

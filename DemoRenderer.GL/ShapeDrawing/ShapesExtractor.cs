@@ -68,12 +68,14 @@ namespace DemoRenderer.ShapeDrawing
             ShapeCache.Clear();
         }
 
-        private unsafe void AddCompoundChildren(ref Buffer<CompoundChild> children, Shapes shapes, RigidPose pose, Vector3 color, ref ShapeCache shapeCache, BufferPool pool)
+        private void AddCompoundChildren(ref Buffer<CompoundChild> children, Shapes shapes, RigidPose pose, Vector3 color, ref ShapeCache shapeCache, BufferPool pool)
         {
             for (int i = 0; i < children.Length; ++i)
             {
                 ref var child = ref children[i];
-                Compound.GetWorldPose(child.LocalPose, pose, out var childPose);
+                RigidPose childPose;
+                Compound.GetRotatedChildPose(child.LocalPosition, child.LocalOrientation, pose.Orientation, out childPose.Position, out childPose.Orientation);
+                childPose.Position += pose.Position;
                 AddShape(shapes, child.ShapeIndex, childPose, color, ref shapeCache, pool);
             }
         }
@@ -274,7 +276,7 @@ namespace DemoRenderer.ShapeDrawing
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe void AddShape<TShape>(TShape shape, Shapes shapes, RigidPose pose, Vector3 color) where TShape : IShape
         {
-            AddShape(Unsafe.AsPointer(ref shape), shape.TypeId, shapes, pose, color, ref ShapeCache, pool);
+            AddShape(Unsafe.AsPointer(ref shape), TShape.TypeId, shapes, pose, color, ref ShapeCache, pool);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -290,7 +292,7 @@ namespace DemoRenderer.ShapeDrawing
             ref var activity = ref set.Activity[indexInSet];
             Vector3 color;
             Helpers.UnpackColor((uint)HashHelper.Rehash(handle.Value), out Vector3 colorVariation);
-            ref var state = ref set.SolverStates[indexInSet];
+            ref var state = ref set.DynamicsState[indexInSet];
             if (Bodies.IsKinematic(state.Inertia.Local))
             {
                 var kinematicBase = new Vector3(0, 0.609f, 0.37f);
@@ -355,7 +357,7 @@ namespace DemoRenderer.ShapeDrawing
             pool.Take(threadDispatcher.ThreadCount, out workerCaches);
             for (int i = 0; i < workerCaches.Length; ++i)
             {
-                workerCaches[i] = new ShapeCache(128, threadDispatcher.GetThreadMemoryPool(i));
+                workerCaches[i] = new ShapeCache(128, threadDispatcher.WorkerPools[i]);
             }
         }
 
@@ -364,7 +366,7 @@ namespace DemoRenderer.ShapeDrawing
             jobs.Dispose(pool);
             for (int i = 0; i < workerCaches.Length; ++i)
             {
-                workerCaches[i].Dispose(looper.Dispatcher.GetThreadMemoryPool(i));
+                workerCaches[i].Dispose(looper.Dispatcher.WorkerPools[i]);
             }
             looper.Dispatcher = null;
             pool.Return(ref workerCaches);
@@ -411,7 +413,7 @@ namespace DemoRenderer.ShapeDrawing
         {
             var job = jobs[jobIndex];
             var simulation = simulations == null ? this.simulation : this.simulations[job.SimulationIndex];
-            var pool = looper.Dispatcher.GetThreadMemoryPool(workerIndex);
+            var pool = looper.Dispatcher.WorkerPools[workerIndex];
 
             if (job.SetIndex >= 0)
             {

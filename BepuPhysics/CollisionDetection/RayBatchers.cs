@@ -50,13 +50,14 @@ namespace BepuPhysics.CollisionDetection
         /// Constructs a ray batcher for the broad phase and initializes its backing resources.
         /// </summary>
         /// <param name="pool">Pool to pull resources from.</param>
+        /// <param name="broadPhase">Broad phase to be tested.</param>
         /// <param name="rayTester">Ray tester used to test leaves found by the broad phase tree traversals.</param>
         /// <param name="batcherRayCapacity">Maximum number of rays to execute in each traversal.
         /// This should typically be chosen as the highest value which avoids spilling data out of L2 cache.</param>
         public BroadPhaseRayBatcher(BufferPool pool, BroadPhase broadPhase, TRayTester rayTester, int batcherRayCapacity = 2048)
         {
-            activeTester = new LeafTester { Leaves = broadPhase.activeLeaves, RayTester = rayTester };
-            staticTester = new LeafTester { Leaves = broadPhase.staticLeaves, RayTester = rayTester };
+            activeTester = new LeafTester { Leaves = broadPhase.ActiveLeaves, RayTester = rayTester };
+            staticTester = new LeafTester { Leaves = broadPhase.StaticLeaves, RayTester = rayTester };
             this.broadPhase = broadPhase;
             batcher = new RayBatcher(pool, batcherRayCapacity,
                 Math.Max(8, 2 * SpanHelper.GetContainingPowerOf2(Math.Max(broadPhase.StaticTree.LeafCount, broadPhase.ActiveTree.LeafCount))));
@@ -129,7 +130,7 @@ namespace BepuPhysics.CollisionDetection
                 }
 
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                public unsafe void OnRayHit(in RayData ray, ref float maximumT, float t, in Vector3 normal, int childIndex)
+                public void OnRayHit(in RayData ray, ref float maximumT, float t, Vector3 normal, int childIndex)
                 {
                     HitHandler.OnRayHit(ray, ref maximumT, t, normal, Reference, childIndex);
                 }

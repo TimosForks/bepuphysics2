@@ -45,7 +45,7 @@ namespace BepuPhysics.Collidables
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public readonly void ComputeBounds(in Quaternion orientation, out Vector3 min, out Vector3 max)
+        public readonly void ComputeBounds(Quaternion orientation, out Vector3 min, out Vector3 max)
         {
             //The bounding box is composed of the contribution from the axis line segment and the disc cap.
             //The bounding box of the disc cap can be found by sampling the extreme point in each of the three directions:
@@ -73,7 +73,7 @@ namespace BepuPhysics.Collidables
         }
 
 
-        public readonly bool RayTest(in RigidPose pose, in Vector3 origin, in Vector3 direction, out float t, out Vector3 normal)
+        public readonly bool RayTest(in RigidPose pose, Vector3 origin, Vector3 direction, out float t, out Vector3 normal)
         {
             //It's convenient to work in local space, so pull the ray into the cylinder's local space.
             Matrix3x3.CreateFromQuaternion(pose.Orientation, out var orientation);
@@ -86,9 +86,7 @@ namespace BepuPhysics.Collidables
             d *= inverseDLength;
 
             //Move the origin up to the earliest possible impact time. This isn't necessary for math reasons, but it does help avoid some numerical problems.
-            var tOffset = -Vector3.Dot(o, d) - (HalfLength + Radius);
-            if (tOffset < 0)
-                tOffset = 0;
+            var tOffset = float.Max(0, -Vector3.Dot(o, d) - (HalfLength + Radius));
             o += d * tOffset;
             var oh = new Vector3(o.X, 0, o.Z);
             var dh = new Vector3(d.X, 0, d.Z);
@@ -115,9 +113,8 @@ namespace BepuPhysics.Collidables
                     normal = new Vector3();
                     return false;
                 }
-                t = (-b - (float)Math.Sqrt(discriminant)) / a;
-                if (t < -tOffset)
-                    t = -tOffset;
+                t = (-b - MathF.Sqrt(discriminant)) / a;
+                t = float.Max(t, -tOffset);
                 var cylinderHitLocation = o + d * t;
                 if (cylinderHitLocation.Y < -HalfLength)
                 {
@@ -144,9 +141,9 @@ namespace BepuPhysics.Collidables
 
             //Intersect the ray with the plane anchored at discY with normal equal to (0,1,0).
             //t = dot(rayOrigin - (0,discY,0), (0,1,0)) / dot(rayDirection, (0,1,0)
-            if (o.Y * d.Y >= 0)
+            if (float.Abs(o.Y) > HalfLength && o.Y * d.Y >= 0)
             {
-                //The ray can only hit the disc if the direction points toward the cylinder.
+                //The ray can only hit the disc if the ray is inside the cylinder or the direction points toward the cylinder.
                 t = 0;
                 normal = new Vector3();
                 return false;
@@ -179,7 +176,7 @@ namespace BepuPhysics.Collidables
             return inertia;
         }
 
-        public readonly ShapeBatch CreateShapeBatch(BufferPool pool, int initialCapacity, Shapes shapeBatches)
+        public static ShapeBatch CreateShapeBatch(BufferPool pool, int initialCapacity, Shapes shapeBatches)
         {
             return new ConvexShapeBatch<Cylinder, CylinderWide>(pool, initialCapacity);
         }
@@ -188,7 +185,7 @@ namespace BepuPhysics.Collidables
         /// Type id of cylinder shapes.
         /// </summary>
         public const int Id = 4;
-        public readonly int TypeId { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return Id; } }
+        public static int TypeId { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { return Id; } }
     }
 
     public struct CylinderWide : IShapeWide<Cylinder>
@@ -236,7 +233,7 @@ namespace BepuPhysics.Collidables
             maximumAngularExpansion = maximumRadius - Vector.Min(HalfLength, Radius);
         }
 
-        public int MinimumWideRayCount
+        public static int MinimumWideRayCount
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
@@ -291,15 +288,15 @@ namespace BepuPhysics.Collidables
 
             //Intersect the ray with the plane anchored at discY with normal equal to (0,1,0).
             //t = dot(rayOrigin - (0,discY,0), (0,1,0)) / dot(rayDirection, (0,1,0)
-            //The ray can only hit the disc if the direction points toward the cylinder.
-            var rayPointsTowardDisc = Vector.LessThan(o.Y * d.Y, Vector<float>.Zero);
+            //The ray can only hit the disc if the ray is inside the cylinder or the direction points toward the cylinder.
+            var withinDiscsOrRayPointsTowardDisc = Vector.BitwiseOr(Vector.LessThanOrEqual(Vector.Abs(o.Y), HalfLength), Vector.LessThan(o.Y * d.Y, Vector<float>.Zero));
 
             var capT = (discY - o.Y) / d.Y;
 
             var hitLocationX = o.X + d.X * capT;
             var hitLocationZ = o.Z + d.Z * capT;
             var capHitWithinRadius = Vector.LessThanOrEqual(hitLocationX * hitLocationX + hitLocationZ * hitLocationZ, radiusSquared);
-            var hitCap = Vector.BitwiseAnd(rayPointsTowardDisc, capHitWithinRadius);
+            var hitCap = Vector.BitwiseAnd(withinDiscsOrRayPointsTowardDisc, capHitWithinRadius);
 
             t = (tOffset + Vector.ConditionalSelect(useCylinder, cylinderT, Vector.ConditionalSelect(hitCap, capT, Vector<float>.Zero))) * inverseDLength;
             var capUsesUpwardFacingNormal = Vector.LessThan(d.Y, Vector<float>.Zero);

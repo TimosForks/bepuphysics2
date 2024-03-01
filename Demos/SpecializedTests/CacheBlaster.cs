@@ -1,17 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
+﻿using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Demos.SpecializedTests
 {
     public static class CacheBlaster
     {
-        const int byteCount = (1 << 24); //16.7MB is bigger than most desktop last level caches. You'll want to pick something higher if you're running this on some ginormo xeon.
+        const int byteCount = 1 << 28;
         const int intCount = byteCount / 4;
         static int vectorCount = intCount / Vector<int>.Count;
         static int vectorMask = vectorCount - 1;

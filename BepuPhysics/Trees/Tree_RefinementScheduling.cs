@@ -10,13 +10,12 @@ namespace BepuPhysics.Trees
 {
     partial struct Tree
     {
-
-        unsafe float RefitAndMeasure(ref NodeChild child)
+        float RefitAndMeasure(ref NodeChild child)
         {
             ref var node = ref Nodes[child.Index];
 
             //All nodes are guaranteed to have at least 2 children.
-            Debug.Assert(leafCount >= 2);
+            Debug.Assert(LeafCount >= 2);
 
             var premetric = ComputeBoundsMetric(ref child.Min, ref child.Max);
             float childChange = 0;
@@ -37,7 +36,7 @@ namespace BepuPhysics.Trees
 
         }
 
-        unsafe float RefitAndMark(ref NodeChild child, int leafCountThreshold, ref QuickList<int> refinementCandidates, BufferPool pool)
+        float RefitAndMark(ref NodeChild child, int leafCountThreshold, ref QuickList<int> refinementCandidates, BufferPool pool)
         {
             Debug.Assert(leafCountThreshold > 1);
 
@@ -87,7 +86,7 @@ namespace BepuPhysics.Trees
 
         }
 
-        unsafe float RefitAndMark(int leafCountThreshold, ref QuickList<int> refinementCandidates, BufferPool pool)
+        float RefitAndMark(int leafCountThreshold, ref QuickList<int> refinementCandidates, BufferPool pool)
         {
             Debug.Assert(LeafCount > 2, "There's no reason to refit a tree with 2 or less elements. Nothing would happen.");
 
@@ -131,9 +130,7 @@ namespace BepuPhysics.Trees
         }
 
 
-
-
-        unsafe void ValidateRefineFlags(int index)
+        void ValidateRefineFlags(int index)
         {
             ref var metanode = ref Metanodes[index];
             if (metanode.RefineFlag != 0)
@@ -152,10 +149,10 @@ namespace BepuPhysics.Trees
 
         readonly void GetRefitAndMarkTuning(out int maximumSubtrees, out int estimatedRefinementCandidateCount, out int refinementLeafCountThreshold)
         {
-            maximumSubtrees = (int)(Math.Sqrt(leafCount) * 3);
-            estimatedRefinementCandidateCount = (leafCount * 2) / maximumSubtrees;
+            maximumSubtrees = (int)(Math.Sqrt(LeafCount) * 3);
+            estimatedRefinementCandidateCount = (LeafCount * 2) / maximumSubtrees;
 
-            refinementLeafCountThreshold = Math.Min(leafCount, maximumSubtrees);
+            refinementLeafCountThreshold = Math.Min(LeafCount, maximumSubtrees);
         }
 
         readonly void GetRefineTuning(int frameIndex, int refinementCandidatesCount, float refineAggressivenessScale, float costChange,
@@ -170,7 +167,7 @@ namespace BepuPhysics.Trees
             var refineAggressiveness = Math.Max(0, costChange * refineAggressivenessScale);
             float refinePortion = Math.Min(1, refineAggressiveness * 0.25f);
 
-            var targetRefinementScale = Math.Min(nodeCount, Math.Max(2, (float)Math.Ceiling(refinementCandidatesCount * refineAggressivenessScale * 0.03f)) + refinementCandidatesCount * refinePortion);
+            var targetRefinementScale = Math.Min(NodeCount, Math.Max(2, (float)Math.Ceiling(refinementCandidatesCount * refineAggressivenessScale * 0.03f)) + refinementCandidatesCount * refinePortion);
             //Note that the refinementCandidatesCount is used as a maximum instead of refinementCandidates + 1 for simplicity, since there's a chance
             //that the root would already be a refinementCandidate. Doesn't really have a significant effect either way.
             refinementPeriod = Math.Max(1, (int)(refinementCandidatesCount / targetRefinementScale));
@@ -178,10 +175,10 @@ namespace BepuPhysics.Trees
             targetRefinementCount = Math.Min(refinementCandidatesCount, (int)targetRefinementScale);
         }
 
-        public unsafe void RefitAndRefine(BufferPool pool, int frameIndex, float refineAggressivenessScale = 1)
+        public void RefitAndRefine(BufferPool pool, int frameIndex, float refineAggressivenessScale = 1)
         {
             //Don't proceed if the tree has no refitting or refinement required. This also guarantees that any nodes that do exist have two children.
-            if (leafCount <= 2)
+            if (LeafCount <= 2)
                 return;
             GetRefitAndMarkTuning(out int maximumSubtrees, out int estimatedRefinementCandidateCount, out int leafCountThreshold);
             var refinementCandidates = new QuickList<int>(estimatedRefinementCandidateCount, pool);

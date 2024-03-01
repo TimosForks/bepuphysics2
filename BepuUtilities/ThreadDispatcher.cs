@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 using BepuUtilities.Memory;
 
@@ -8,7 +9,7 @@ namespace BepuUtilities
     /// <summary>
     /// Provides a <see cref="IThreadDispatcher"/> implementation. Not reentrant.
     /// </summary>
-    public class ThreadDispatcher : IThreadDispatcher, IDisposable
+    public unsafe class ThreadDispatcher : IThreadDispatcher, IDisposable
     {
         int threadCount;
         /// <summary>
@@ -24,7 +25,12 @@ namespace BepuUtilities
         Worker[] workers;
         AutoResetEvent finished;
 
-        BufferPool[] bufferPools;
+        /// <inheritdoc/>
+        public WorkerBufferPools WorkerPools { get; private set; }
+        /// <inheritdoc/>
+        public void* UnmanagedContext => unmanagedContext;
+        /// <inheritdoc/>
+        public object ManagedContext => managedContext;
 
         /// <summary>
         /// Creates a new thread dispatcher with the given number of threads.
@@ -33,6 +39,8 @@ namespace BepuUtilities
         /// <param name="threadPoolBlockAllocationSize">Size of memory blocks to allocate for thread pools.</param>
         public ThreadDispatcher(int threadCount, int threadPoolBlockAllocationSize = 16384)
         {
+            if (threadCount <= 0)
+                throw new ArgumentOutOfRangeException(nameof(threadCount), "Thread count must be positive.");
             this.threadCount = threadCount;
             workers = new Worker[threadCount - 1];
             for (int i = 0; i < workers.Length; ++i)
@@ -42,26 +50,49 @@ namespace BepuUtilities
                 workers[i].Thread.Start((workers[i].Signal, i + 1));
             }
             finished = new AutoResetEvent(false);
-            bufferPools = new BufferPool[threadCount];
-            for (int i = 0; i < bufferPools.Length; ++i)
-            {
-                bufferPools[i] = new BufferPool(threadPoolBlockAllocationSize);
-            }
+            WorkerPools = new WorkerBufferPools(threadCount, threadPoolBlockAllocationSize);
         }
 
         void DispatchThread(int workerIndex)
         {
-            Debug.Assert(workerBody != null);
-            workerBody(workerIndex);
+            switch (workerType)
+            {
+                case WorkerType.Managed: managedWorker(workerIndex); break;
+                case WorkerType.Unmanaged: unmanagedWorker(workerIndex, this); break;
+            }
 
-            if (Interlocked.Decrement(ref remainingWorkerCounter) == -1)
+            if (Interlocked.Decrement(ref remainingWorkerCounter.Value) == -1)
             {
                 finished.Set();
             }
         }
 
-        volatile Action<int> workerBody;
-        int remainingWorkerCounter;
+        enum WorkerType
+        {
+            //We've gone back and forth many times on how many types exist. 2 at the moment, but will it be 4 again next week? Who knows!
+            Managed,
+            Unmanaged,
+        }
+
+        volatile WorkerType workerType;
+        volatile Action<int> managedWorker;
+        volatile delegate*<int, IThreadDispatcher, void> unmanagedWorker;
+        volatile void* unmanagedContext;
+        volatile object managedContext;
+
+        //We'd like to avoid the thread readonly values above being adjacent to the thread readwrite counter.
+        //If they were in the same cache line, it would cause a bit of extra contention for no reason.
+        //(It's not *that* big of a deal since the counter is only touched once per worker, but padding this also costs nothing.)
+        //In a class, we don't control layout, so wrap the counter in a beefy struct.
+        //128B padding is used for the sake of architectures that might try prefetching cache line pairs and running into sync problems.
+        [StructLayout(LayoutKind.Explicit, Size = 256)]
+        struct Counter
+        {
+            [FieldOffset(128)]
+            public int Value;
+        }
+
+        Counter remainingWorkerCounter;
 
         void WorkerLoop(object untypedSignal)
         {
@@ -81,30 +112,63 @@ namespace BepuUtilities
             //So if we want 4 total executing threads, we should signal 3 workers.
             int maximumWorkersToSignal = maximumWorkerCount - 1;
             var workersToSignal = maximumWorkersToSignal < workers.Length ? maximumWorkersToSignal : workers.Length;
-            remainingWorkerCounter = workersToSignal;
+            remainingWorkerCounter.Value = workersToSignal;
             for (int i = 0; i < workersToSignal; ++i)
             {
                 workers[i].Signal.Set();
             }
         }
 
-        public void DispatchWorkers(Action<int> workerBody, int maximumWorkerCount = int.MaxValue)
+        /// <inheritdoc/>
+        public void DispatchWorkers(delegate*<int, IThreadDispatcher, void> workerBody, int maximumWorkerCount = int.MaxValue, void* unmanagedContext = null, object managedContext = null)
         {
+            Debug.Assert(this.managedWorker == null && this.unmanagedWorker == null && this.managedContext == null && this.unmanagedContext == null);
+            this.unmanagedContext = unmanagedContext;
+            this.managedContext = managedContext;
             if (maximumWorkerCount > 1)
             {
-                Debug.Assert(this.workerBody == null);
-                this.workerBody = workerBody;
+                workerType = WorkerType.Unmanaged;
+                this.unmanagedWorker = workerBody;
                 SignalThreads(maximumWorkerCount);
                 //Calling thread does work. No reason to spin up another worker and block this one!
                 DispatchThread(0);
                 finished.WaitOne();
-                this.workerBody = null;
+                this.unmanagedWorker = null;
+            }
+            else if (maximumWorkerCount == 1)
+            {
+                workerBody(0, this);
+            }
+            this.unmanagedContext = null;
+            this.managedContext = null;
+        }
+
+        //While we *could* pass in the IThreadDispatcher for the managed side of things, it is typically best to just expect closures. Simplifies some stuff.
+        //(The fact that we supply context at all is a bit of a shrug.)
+        /// <inheritdoc/>
+        public void DispatchWorkers(Action<int> workerBody, int maximumWorkerCount = int.MaxValue, void* unmanagedContext = null, object managedContext = null)
+        {
+            Debug.Assert(this.managedWorker == null && this.unmanagedWorker == null && this.managedContext == null && this.unmanagedContext == null);
+            this.unmanagedContext = unmanagedContext;
+            this.managedContext = managedContext;
+            if (maximumWorkerCount > 1)
+            {
+                workerType = WorkerType.Managed;
+                this.managedWorker = workerBody;
+                SignalThreads(maximumWorkerCount);
+                //Calling thread does work. No reason to spin up another worker and block this one!
+                DispatchThread(0);
+                finished.WaitOne();
+                this.managedWorker = null;
             }
             else if (maximumWorkerCount == 1)
             {
                 workerBody(0);
             }
+            this.unmanagedContext = null;
+            this.managedContext = null;
         }
+
 
         volatile bool disposed;
 
@@ -117,22 +181,15 @@ namespace BepuUtilities
             {
                 disposed = true;
                 SignalThreads(threadCount);
-                for (int i = 0; i < bufferPools.Length; ++i)
-                {
-                    bufferPools[i].Clear();
-                }
                 foreach (var worker in workers)
                 {
                     worker.Thread.Join();
                     worker.Signal.Dispose();
                 }
+                WorkerPools.Dispose();
             }
         }
 
-        public BufferPool GetThreadMemoryPool(int workerIndex)
-        {
-            return bufferPools[workerIndex];
-        }
     }
 
 }

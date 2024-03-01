@@ -3,11 +3,9 @@ using System;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using BepuPhysics.Constraints;
 using BepuPhysics.Collidables;
 using BepuPhysics.CollisionDetection;
 using BepuUtilities;
-using static BepuUtilities.GatherScatter;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 
@@ -94,7 +92,7 @@ namespace BepuPhysics
         /// <param name="initialBodyCapacity">Initial number of bodies to allocate space for in the active set.</param>
         /// <param name="initialIslandCapacity">Initial number of islands to allocate space for in the Sets buffer.</param>
         /// <param name="initialConstraintCapacityPerBody">Expected number of constraint references per body to allocate space for.</param>
-        public unsafe Bodies(BufferPool pool, Shapes shapes, BroadPhase broadPhase,
+        public Bodies(BufferPool pool, Shapes shapes, BroadPhase broadPhase,
             int initialBodyCapacity, int initialIslandCapacity, int initialConstraintCapacityPerBody)
         {
             this.Pool = pool;
@@ -132,7 +130,7 @@ namespace BepuPhysics
             ref var collidable = ref set.Collidables[location.Index];
             if (collidable.Shape.Exists)
             {
-                shapes.UpdateBounds(set.SolverStates[location.Index].Motion.Pose, ref collidable.Shape, out var bodyBounds);
+                shapes.UpdateBounds(set.DynamicsState[location.Index].Motion.Pose, collidable.Shape, out var bodyBounds);
                 if (location.SetIndex == 0)
                 {
                     broadPhase.UpdateActiveBounds(collidable.BroadPhaseIndex, bodyBounds.Min, bodyBounds.Max);
@@ -152,7 +150,7 @@ namespace BepuPhysics
             //Note that we have to calculate an initial bounding box for the broad phase to be able to insert it efficiently.
             //(In the event of batch adds, you'll want to use batched AABB calculations or just use cached values.)
             //Note: the min and max here are in absolute coordinates, which means this is a spot that has to be updated in the event that positions use a higher precision representation.
-            shapes.UpdateBounds(pose, ref collidable.Shape, out var bodyBounds);
+            shapes.UpdateBounds(pose, collidable.Shape, out var bodyBounds);
             //Note that new body collidables are always assumed to be active.
             collidable.BroadPhaseIndex =
                 broadPhase.AddActive(
@@ -182,7 +180,7 @@ namespace BepuPhysics
         /// </summary>
         /// <param name="description">Description of the body to add.</param>
         /// <returns>Handle of the created body.</returns>
-        public unsafe BodyHandle Add(in BodyDescription description)
+        public BodyHandle Add(in BodyDescription description)
         {
             Debug.Assert(HandleToLocation.Allocated, "The backing memory of the bodies set should be initialized before use.");
             var handleIndex = HandlePool.Take();
@@ -389,7 +387,7 @@ namespace BepuPhysics
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        unsafe void UpdateForKinematicStateChange(BodyHandle handle, ref BodyMemoryLocation location, ref BodySet set, bool previouslyKinematic, bool currentlyKinematic)
+        void UpdateForKinematicStateChange(BodyHandle handle, ref BodyMemoryLocation location, ref BodySet set, bool previouslyKinematic, bool currentlyKinematic)
         {
             Debug.Assert(location.SetIndex == 0, "If we're changing kinematic state, we should have already awoken the body.");
             if (previouslyKinematic != currentlyKinematic)
@@ -401,11 +399,11 @@ namespace BepuPhysics
                     var mobility = currentlyKinematic ? CollidableMobility.Kinematic : CollidableMobility.Dynamic;
                     if (location.SetIndex == 0)
                     {
-                        broadPhase.activeLeaves[collidable.BroadPhaseIndex] = new CollidableReference(mobility, handle);
+                        broadPhase.ActiveLeaves[collidable.BroadPhaseIndex] = new CollidableReference(mobility, handle);
                     }
                     else
                     {
-                        broadPhase.staticLeaves[collidable.BroadPhaseIndex] = new CollidableReference(mobility, handle);
+                        broadPhase.StaticLeaves[collidable.BroadPhaseIndex] = new CollidableReference(mobility, handle);
                     }
                 }
                 ref var constraints = ref set.Constraints[location.Index];
@@ -441,8 +439,8 @@ namespace BepuPhysics
             }
             //Note that the HandleToLocation slot reference is still valid; it may have been updated, but handle slots don't move.
             ref var set = ref Sets[location.SetIndex];
-            ref var inertiaReference = ref set.SolverStates[location.Index].Inertia;
-            ref var localInertiaReference = ref set.SolverStates[location.Index].Inertia.Local;
+            ref var inertiaReference = ref set.DynamicsState[location.Index].Inertia;
+            ref var localInertiaReference = ref set.DynamicsState[location.Index].Inertia.Local;
             var nowKinematic = IsKinematic(localInertia);
             var previouslyKinematic = IsKinematicUnsafeGCHole(ref inertiaReference.Local);
             inertiaReference.Local = localInertia;
@@ -462,7 +460,7 @@ namespace BepuPhysics
                 if (newShape.Exists)
                 {
                     //Add a collidable to the simulation for the new shape.
-                    ref var state = ref set.SolverStates[activeBodyIndex];
+                    ref var state = ref set.DynamicsState[activeBodyIndex];
                     AddCollidableToBroadPhase(handle, state.Motion.Pose, state.Inertia.Local, ref set.Collidables[activeBodyIndex]);
                 }
                 else
@@ -517,7 +515,7 @@ namespace BepuPhysics
             ref var collidable = ref set.Collidables[location.Index];
             var oldShape = collidable.Shape;
             var nowKinematic = IsKinematic(description.LocalInertia);
-            var previouslyKinematic = IsKinematicUnsafeGCHole(ref set.SolverStates[location.Index].Inertia.Local);
+            var previouslyKinematic = IsKinematicUnsafeGCHole(ref set.DynamicsState[location.Index].Inertia.Local);
             set.ApplyDescriptionByIndex(location.Index, description);
             UpdateForShapeChange(handle, location.Index, oldShape, description.Collidable.Shape);
             UpdateForKinematicStateChange(handle, ref location, ref set, previouslyKinematic, nowKinematic);
@@ -575,6 +573,24 @@ namespace BepuPhysics
             return bodyHandle.Value >= 0 && bodyHandle.Value < HandleToLocation.Length && HandleToLocation[bodyHandle.Value].SetIndex >= 0;
         }
 
+        /// <summary>
+        /// Computes the number of bodies contained in the simulation.
+        /// </summary>
+        /// <returns>Number of bodies contained in the simulation.</returns>
+        /// <remarks>Enumerates all <see cref="BodySet"/> instances in the <see cref="Bodies"/> collection, summing the body counts for every allocated instance. 
+        /// For simulations with very large numbers of sleeping body sets, this is not a trivial operation.</remarks>
+        public int CountBodies()
+        {
+            int count = 0;
+            for (int i = 0; i < Sets.Length; ++i)
+            {
+                ref var set = ref Sets[i];
+                if (set.Allocated)
+                    count += set.Count;
+            }
+            return count;
+        }
+
         [Conditional("DEBUG")]
         internal void ValidateExistingHandle(BodyHandle handle)
         {
@@ -601,7 +617,7 @@ namespace BepuPhysics
                 {
                     for (int j = 0; j < set.Count; ++j)
                     {
-                        ref var state = ref set.SolverStates[j];
+                        ref var state = ref set.DynamicsState[j];
                         try
                         {
                             state.Motion.Pose.Position.Validate();
@@ -628,7 +644,7 @@ namespace BepuPhysics
             ref var set = ref ActiveSet;
             for (int j = 0; j < set.Count; ++j)
             {
-                ref var state = ref set.SolverStates[j];
+                ref var state = ref set.DynamicsState[j];
                 instance.ContributeToHash(ref hash, state.Motion.Pose.Position);
                 instance.ContributeToHash(ref hash, state.Motion.Pose.Orientation);
                 instance.ContributeToHash(ref hash, state.Motion.Velocity.Linear);

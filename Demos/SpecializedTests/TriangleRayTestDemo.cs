@@ -1,17 +1,12 @@
 ﻿using BepuPhysics;
 using BepuPhysics.Collidables;
-using BepuPhysics.CollisionDetection;
 using BepuPhysics.Constraints;
 using BepuUtilities;
 using DemoContentLoader;
 using DemoRenderer;
-using DemoRenderer.UI;
-using DemoUtilities;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
-using System.Text;
 
 namespace Demos.SpecializedTests
 {
@@ -63,7 +58,7 @@ namespace Demos.SpecializedTests
             pointOutsideTriangle += pose.Position;
         }
 
-        void TestRay(in Triangle triangle, in RigidPose pose, in Vector3 rayOrigin, in Vector3 rayDirection, bool expectedImpact, in Vector3 pointOnTrianglePlane)
+        void TestRay(in Triangle triangle, in RigidPose pose, Vector3 rayOrigin, Vector3 rayDirection, bool expectedImpact, Vector3 pointOnTrianglePlane)
         {
             var hit = triangle.RayTest(pose, rayOrigin, rayDirection, out var t, out var normal);
 
@@ -89,7 +84,7 @@ namespace Demos.SpecializedTests
             }
         }
 
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(-30, 8, -60);
             camera.Yaw = MathHelper.Pi * 3f / 4;

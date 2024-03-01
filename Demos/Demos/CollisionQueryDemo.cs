@@ -10,10 +10,8 @@ using DemoRenderer;
 using DemoRenderer.UI;
 using DemoUtilities;
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace Demos.Demos
 {
@@ -42,7 +40,7 @@ namespace Demos.Demos
             }
 
             //Add in a static object to test against. Note that the mesh triangles are one sided, so some of the queries whose centers are beneath the mesh do not generate any contacts.
-            DemoMeshHelper.CreateDeformedPlane(20, 20, (x, y) => { return new Vector3(x * 5 - 50, 3 * MathF.Sin(x) * MathF.Sin(y), y * 5 - 50); }, Vector3.One, BufferPool, out var mesh);
+            var mesh = DemoMeshHelper.CreateDeformedPlane(20, 20, (x, y) => { return new Vector3(x * 5 - 50, 3 * MathF.Sin(x) * MathF.Sin(y), y * 5 - 50); }, Vector3.One, BufferPool);
             Simulation.Statics.Add(new StaticDescription(new Vector3(0, 0, 0), Simulation.Shapes.Add(mesh)));
         }
 
@@ -82,10 +80,7 @@ namespace Demos.Demos
                 //And if you find yourself wanting contact data, well, you've got it handy!)
                 for (int i = 0; i < manifold.Count; ++i)
                 {
-                    //This probably looks a bit odd, but it addresses a limitation of returning references to the struct 'this' instance.
-                    //(What we really want here is either the lifting of that restriction, or allowing interfaces to require a static member so that we could call the static function and pass the instance, 
-                    //instead of invoking the function on the instance AND passing the instance.)
-                    if (manifold.GetDepth(ref manifold, i) >= 0)
+                    if (manifold.GetDepth(i) >= 0)
                     {
                         QueryWasTouched[pairId] = true;
                         break;
@@ -140,7 +135,7 @@ namespace Demos.Demos
         /// <param name="queryPose">Pose of the query shape.</param>
         /// <param name="queryId">Id to use to refer to this query when the collision batcher finishes processing it.</param>
         /// <param name="batcher">Batcher to add the query's tests to.</param>
-        public unsafe void AddQueryToBatch(int queryShapeType, void* queryShapeData, int queryShapeSize, in Vector3 queryBoundsMin, in Vector3 queryBoundsMax, in RigidPose queryPose, int queryId, ref CollisionBatcher<BatcherCallbacks> batcher)
+        public unsafe void AddQueryToBatch(int queryShapeType, void* queryShapeData, int queryShapeSize, Vector3 queryBoundsMin, Vector3 queryBoundsMax, in RigidPose queryPose, int queryId, ref CollisionBatcher<BatcherCallbacks> batcher)
         {
             var broadPhaseEnumerator = new BroadPhaseOverlapEnumerator { Pool = BufferPool, References = new QuickList<CollidableReference>(16, BufferPool) };
             Simulation.BroadPhase.GetOverlaps(queryBoundsMin, queryBoundsMax, ref broadPhaseEnumerator);
@@ -155,7 +150,7 @@ namespace Demos.Demos
                     shapeIndex.Type, queryShapeType,
                     shapeData, cachedQueryShapeData,
                     //Because we're using this as a boolean query, we use a speculative margin of 0. Don't care about negative depths.
-                    queryPose.Position - pose.Position, queryPose.Orientation, pose.Orientation, 0, new PairContinuation(queryId));
+                    queryPose.Position - pose.Position, pose.Orientation, queryPose.Orientation, 0, new PairContinuation(queryId));
             }
             broadPhaseEnumerator.References.Dispose(BufferPool);
         }
@@ -175,7 +170,7 @@ namespace Demos.Demos
             shape.ComputeBounds(pose.Orientation, out var boundingBoxMin, out var boundingBoxMax);
             boundingBoxMin += pose.Position;
             boundingBoxMax += pose.Position;
-            AddQueryToBatch(shape.TypeId, queryShapeData, queryShapeSize, boundingBoxMin, boundingBoxMax, pose, queryId, ref batcher);
+            AddQueryToBatch(TShape.TypeId, queryShapeData, queryShapeSize, boundingBoxMin, boundingBoxMax, pose, queryId, ref batcher);
         }
 
         //This version of the query isn't used in the demo, but shows how you could use a simulation-cached shape in a query.
@@ -215,7 +210,7 @@ namespace Demos.Demos
             public RigidPose Pose;
         }
 
-        public unsafe override void Render(Renderer renderer, Camera camera, Input input, TextBuilder text, Font font)
+        public override void Render(Renderer renderer, Camera camera, Input input, TextBuilder text, Font font)
         {
             //The collision batcher vectorizes over multiple tests at once, so for optimal performance, you'll want to feed it a bunch of tests.
             var collisionBatcher = new CollisionBatcher<BatcherCallbacks>(BufferPool, Simulation.Shapes, Simulation.NarrowPhase.CollisionTaskRegistry, 0, new BatcherCallbacks());
@@ -225,11 +220,15 @@ namespace Demos.Demos
             var queries = new QuickList<Query>(widthInQueries * widthInQueries, BufferPool);
             var querySpacing = new Vector3(3, 0, 3);
             var basePosition = new Vector3(0, 2, 0) - new Vector3(widthInQueries - 1) * querySpacing * 0.5f;
-            for (int i = 0; i < 5; ++i)
+            for (int i = 0; i < widthInQueries; ++i)
             {
-                for (int j = 0; j < 5; ++j)
+                for (int j = 0; j < widthInQueries; ++j)
                 {
-                    queries.Allocate(BufferPool) = new Query { Box = new Box(1, 1, 1), Pose = basePosition + querySpacing * new Vector3(i, 0, j) };
+                    queries.Allocate(BufferPool) = new Query
+                    {
+                        Box = new Box(1, 1, 1),
+                        Pose = new RigidPose(basePosition + querySpacing * new Vector3(i, 0, j), Quaternion.CreateFromAxisAngle(Vector3.Normalize(new Vector3(i - 2.5f, 0, j - 2.5f)), i * j + 0.7457f))
+                    };
                 }
             }
             //Note that the callbacks and set are value types, so you have to be a little careful about copying.

@@ -46,19 +46,19 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void GetChildAData<TCallbacks>(ref CollisionBatcher<TCallbacks> collisionBatcher, ref CompoundMeshReduction continuation, in BoundsTestedPair pair, int childIndexA,
+        public void GetChildAData<TCallbacks>(ref CollisionBatcher<TCallbacks> collisionBatcher, ref CompoundMeshReduction continuation, in BoundsTestedPair pair, int childIndexA,
             out RigidPose childPoseA, out int childTypeA, out void* childShapeDataA)
             where TCallbacks : struct, ICollisionCallbacks
         {
             ref var compound = ref Unsafe.AsRef<TCompound>(pair.A);
             ref var compoundChild = ref compound.GetChild(childIndexA);
-            Compound.GetRotatedChildPose(compoundChild.LocalPose, pair.OrientationA, out childPoseA);
+            Compound.GetRotatedChildPose(compoundChild.LocalPosition, compoundChild.LocalOrientation, pair.OrientationA, out childPoseA);
             childTypeA = compoundChild.ShapeIndex.Type;
             collisionBatcher.Shapes[childTypeA].GetShapeData(compoundChild.ShapeIndex.Index, out childShapeDataA, out _);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void ConfigureContinuationChild<TCallbacks>(
+        public void ConfigureContinuationChild<TCallbacks>(
             ref CollisionBatcher<TCallbacks> collisionBatcher, ref CompoundMeshReduction continuation, int continuationChildIndex, in BoundsTestedPair pair, int childIndexA, int childTypeA, int childIndexB, in RigidPose childPoseA,
             out RigidPose childPoseB, out int childTypeB, out void* childShapeDataB)
             where TCallbacks : struct, ICollisionCallbacks
@@ -67,7 +67,7 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             //In other words, we can pass a pointer to it to avoid the need for additional batcher shape copying.
             ref var triangle = ref continuation.Triangles[continuationChildIndex];
             childShapeDataB = Unsafe.AsPointer(ref triangle);
-            childTypeB = triangle.TypeId;
+            childTypeB = Triangle.TypeId;
             Unsafe.AsRef<TMesh>(pair.B).GetLocalChild(childIndexB, out continuation.Triangles[continuationChildIndex]);
             ref var continuationChild = ref continuation.Inner.Children[continuationChildIndex];
             //In meshes, the triangle's vertices already contain the offset, so there is no additional offset.                                 

@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using BepuPhysics.Trees;
+using BepuUtilities.TaskScheduling;
 
 namespace BepuPhysics.CollisionDetection
 {
@@ -16,7 +17,7 @@ namespace BepuPhysics.CollisionDetection
 
     //The overlap finder requires type knowledge about the narrow phase that the broad phase lacks. Don't really want to infect the broad phase with a bunch of narrow phase dependent 
     //generic parameters, so instead we just explicitly create a type-aware overlap finder to help the broad phase.
-    public class CollidableOverlapFinder<TCallbacks> : CollidableOverlapFinder where TCallbacks : struct, INarrowPhaseCallbacks
+    public unsafe class CollidableOverlapFinder<TCallbacks> : CollidableOverlapFinder where TCallbacks : struct, INarrowPhaseCallbacks
     {
         struct SelfOverlapHandler : IOverlapHandler
         {
@@ -117,11 +118,11 @@ namespace BepuPhysics.CollisionDetection
                 //would be invalid because they may get resized, invalidating the pointers.
                 for (int i = 0; i < selfHandlers.Length; ++i)
                 {
-                    selfHandlers[i] = new SelfOverlapHandler(broadPhase.activeLeaves, narrowPhase, i);
+                    selfHandlers[i] = new SelfOverlapHandler(broadPhase.ActiveLeaves, narrowPhase, i);
                 }
                 for (int i = 0; i < intertreeHandlers.Length; ++i)
                 {
-                    intertreeHandlers[i] = new IntertreeOverlapHandler(broadPhase.activeLeaves, broadPhase.staticLeaves, narrowPhase, i);
+                    intertreeHandlers[i] = new IntertreeOverlapHandler(broadPhase.ActiveLeaves, broadPhase.StaticLeaves, narrowPhase, i);
                 }
                 Debug.Assert(intertreeHandlers.Length >= threadDispatcher.ThreadCount);
                 selfTestContext.PrepareJobs(ref broadPhase.ActiveTree, selfHandlers, threadDispatcher.ThreadCount);
@@ -151,16 +152,15 @@ namespace BepuPhysics.CollisionDetection
             else
             {
                 narrowPhase.Prepare(dt);
-                var selfTestHandler = new SelfOverlapHandler(broadPhase.activeLeaves, narrowPhase, 0);
+                var selfTestHandler = new SelfOverlapHandler(broadPhase.ActiveLeaves, narrowPhase, 0);
                 broadPhase.ActiveTree.GetSelfOverlaps(ref selfTestHandler);
-                var intertreeHandler = new IntertreeOverlapHandler(broadPhase.activeLeaves, broadPhase.staticLeaves, narrowPhase, 0);
+                var intertreeHandler = new IntertreeOverlapHandler(broadPhase.ActiveLeaves, broadPhase.StaticLeaves, narrowPhase, 0);
                 broadPhase.ActiveTree.GetOverlaps(ref broadPhase.StaticTree, ref intertreeHandler);
                 narrowPhase.overlapWorkers[0].Batcher.Flush();
 
             }
 
         }
-
     }
 }
 

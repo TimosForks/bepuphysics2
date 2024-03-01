@@ -27,7 +27,7 @@ namespace Demos.Demos
 
         ConvexHull hull;
 
-        public unsafe override void Initialize(ContentArchive content, Camera camera)
+        public override void Initialize(ContentArchive content, Camera camera)
         {
             camera.Position = new Vector3(0, 10, 40);
             camera.Yaw = 0;
@@ -102,16 +102,16 @@ namespace Demos.Demos
 
             const int planeWidth = 64;
             const int planeHeight = 64;
-            DemoMeshHelper.CreateDeformedPlane(planeWidth, planeHeight,
+            var planeMesh = DemoMeshHelper.CreateDeformedPlane(planeWidth, planeHeight,
                 (int x, int y) =>
                 {
                     return new Vector3(x, 1 * MathF.Cos(x / 4f) * MathF.Sin(y / 4f), y);
-                }, new Vector3(2, 3, 2), BufferPool, out var planeMesh);
+                }, new Vector3(2, 3, 2), BufferPool);
             Simulation.Statics.Add(new StaticDescription(new Vector3(-64, -10, -64), Simulation.Shapes.Add(planeMesh)));
 
         }
 
-        void DrawShape<TShape>(ref TShape shape, in RigidPose pose, in Vector3 color, Shapes shapes, Renderer renderer)
+        void DrawShape<TShape>(ref TShape shape, in RigidPose pose, Vector3 color, Shapes shapes, Renderer renderer)
             where TShape : struct, IShape
         {
             if (typeof(TShape) == typeof(Triangle))
@@ -132,8 +132,8 @@ namespace Demos.Demos
             }
         }
 
-        unsafe void DrawSweep<TShape>(TShape shape, in RigidPose pose, in BodyVelocity velocity, int steps,
-            float t, Renderer renderer, in Vector3 color)
+        void DrawSweep<TShape>(TShape shape, in RigidPose pose, in BodyVelocity velocity, int steps,
+            float t, Renderer renderer, Vector3 color)
             where TShape : struct, IShape
         {
             if (steps == 1)
@@ -154,7 +154,7 @@ namespace Demos.Demos
             }
         }
 
-        unsafe void DrawImpact(Renderer renderer, ref Vector3 hitLocation, ref Vector3 hitNormal)
+        void DrawImpact(Renderer renderer, ref Vector3 hitLocation, ref Vector3 hitNormal)
         {
             //The normal itself will tend to be obscured by the shapes, so instead draw two lines representing the plane.
             DemoRenderer.Constraints.ContactLines.BuildOrthonormalBasis(hitNormal, out var tangent1, out var tangent2);
@@ -170,12 +170,12 @@ namespace Demos.Demos
         {
             var filter = new Filter();
 
-            var task = Simulation.NarrowPhase.SweepTaskRegistry.GetTask(a.TypeId, b.TypeId);
+            var task = Simulation.NarrowPhase.SweepTaskRegistry.GetTask(TShapeA.TypeId, TShapeB.TypeId);
             if (task == null)
                 return;
             var intersected = task.Sweep(
-                Unsafe.AsPointer(ref a), a.TypeId, poseA.Orientation, velocityA,
-                Unsafe.AsPointer(ref b), b.TypeId, poseB.Position - poseA.Position, poseB.Orientation, velocityB,
+                Unsafe.AsPointer(ref a), TShapeA.TypeId, poseA.Orientation, velocityA,
+                Unsafe.AsPointer(ref b), TShapeB.TypeId, poseB.Position - poseA.Position, poseB.Orientation, velocityB,
                 maximumT, 1e-2f, 1e-5f, 25, ref filter, Simulation.Shapes, Simulation.NarrowPhase.SweepTaskRegistry, BufferPool,
                 out var t0, out var t1, out var hitLocation, out var hitNormal);
             hitLocation += poseA.Position;
@@ -225,7 +225,7 @@ namespace Demos.Demos
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void OnHit(ref float maximumT, float t, in Vector3 hitLocation, in Vector3 hitNormal, CollidableReference collidable)
+            public void OnHit(ref float maximumT, float t, Vector3 hitLocation, Vector3 hitNormal, CollidableReference collidable)
             {
                 //Changing the maximum T value prevents the traversal from visiting any leaf nodes more distant than that later in the traversal.
                 //It is effectively an optimization that you can use if you only care about the time of first impact.
@@ -249,7 +249,7 @@ namespace Demos.Demos
             }
         }
 
-        void StandardTestSweep<TA, TB>(in TA a, in TB b, ref Vector3 position, in Quaternion initialOrientationA, in Quaternion initialOrientationB, Renderer renderer)
+        void StandardTestSweep<TA, TB>(in TA a, in TB b, ref Vector3 position, Quaternion initialOrientationA, Quaternion initialOrientationB, Renderer renderer)
             where TA : struct, IShape where TB : struct, IShape
         {
             TestSweep(
@@ -281,11 +281,11 @@ namespace Demos.Demos
 
             const int planeWidth = 3;
             const int planeHeight = 3;
-            DemoMeshHelper.CreateDeformedPlane(planeWidth, planeHeight,
+            var mesh = DemoMeshHelper.CreateDeformedPlane(planeWidth, planeHeight,
                 (int x, int y) =>
                 {
                     return new Vector3(x - 1.5f, 0.1f * MathF.Cos(x) * MathF.Sin(y), y - 1.5f);
-                }, new Vector3(1, 2, 1), BufferPool, out var mesh);
+                }, new Vector3(1, 2, 1), BufferPool);
 
 
             var triangle = new Triangle(new Vector3(0, 0, 0), new Vector3(2, 0, -1), new Vector3(-1, 0, 1.5f));

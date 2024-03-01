@@ -1,7 +1,6 @@
 ﻿using BepuPhysics.Collidables;
 using BepuUtilities;
 using System;
-using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
@@ -15,9 +14,9 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             public Vector3 EdgePlaneNormal;
             public float MaximumContainmentDot;
         }
-        public int BatchSize => 16;
+        public static int BatchSize => 16;
 
-        public unsafe void Test(ref ConvexHullWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationA, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static unsafe void Test(ref ConvexHullWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationA, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             Unsafe.SkipInit(out manifold);
             Matrix3x3Wide.CreateFromQuaternion(orientationA, out var rA);
@@ -105,7 +104,9 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
                     edge.EdgePlaneNormal = Vector3.Cross(slotLocalNormal, edge.Vertex - previousVertexA);
                     previousVertexA = edge.Vertex;
                 }
-                var maximumCandidateCount = faceVertexIndicesB.Length * 2; //Two contacts per edge.
+                //The number of possible edge intersections is no more than two per edge on either shape due to convexity.
+                //Vertex-face contacts could number as high as the number of vertices in either face.
+                var maximumCandidateCount = Math.Max(Math.Max(faceVertexIndicesA.Length, faceVertexIndicesB.Length), Math.Min(faceVertexIndicesA.Length * 2, faceVertexIndicesB.Length * 2));
                 var candidates = stackalloc ManifoldCandidateScalar[maximumCandidateCount];
                 var candidateCount = 0;
                 var previousIndexB = faceVertexIndicesB[faceVertexIndicesB.Length - 1];
@@ -223,12 +224,12 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             Matrix3x3Wide.TransformWithoutOverlap(localNormal, rB, out manifold.Normal);
         }
 
-        public void Test(ref ConvexHullWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static void Test(ref ConvexHullWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, ref QuaternionWide orientationB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             throw new NotImplementedException();
         }
 
-        public void Test(ref ConvexHullWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, int pairCount, out Convex4ContactManifoldWide manifold)
+        public static void Test(ref ConvexHullWide a, ref ConvexHullWide b, ref Vector<float> speculativeMargin, ref Vector3Wide offsetB, int pairCount, out Convex4ContactManifoldWide manifold)
         {
             throw new NotImplementedException();
         }

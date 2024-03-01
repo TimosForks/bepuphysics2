@@ -3,7 +3,6 @@ using BepuUtilities.Collections;
 using BepuUtilities.Memory;
 using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
@@ -249,19 +248,17 @@ namespace BepuPhysics.Trees
         {
             if (leafBounds.Length <= 0)
                 throw new ArgumentException("Length must be positive.");
-            if (LeafCount != 0)
-                throw new InvalidOperationException("Cannot build a tree that already contains nodes.");
             //The tree is built with an empty node at the root to make insertion work more easily.
             //As long as that is the case (and as long as this is not a constructor),
             //we must clear it out.
-            nodeCount = 0;
+            NodeCount = 0;
 
             //Guarantee that no resizes will occur during the build.
             if (Leaves.Length < leafBounds.Length)
             {
                 Resize(pool, leafBounds.Length);
             }
-            leafCount = leafBounds.Length;
+            LeafCount = leafBounds.Length;
 
 
             pool.TakeAtLeast<int>(leafBounds.Length, out var indexMap);
@@ -302,13 +299,13 @@ namespace BepuPhysics.Trees
 
 
             //Return resources.            
-            pool.ReturnUnsafely(centroidsX.Id);
-            pool.ReturnUnsafely(centroidsY.Id);
-            pool.ReturnUnsafely(centroidsZ.Id);
-            pool.ReturnUnsafely(indexMap.Id);
-            pool.ReturnUnsafely(indexMapX.Id);
-            pool.ReturnUnsafely(indexMapY.Id);
-            pool.ReturnUnsafely(indexMapZ.Id);
+            pool.Return(ref centroidsX);
+            pool.Return(ref centroidsY);
+            pool.Return(ref centroidsZ);
+            pool.Return(ref indexMap);
+            pool.Return(ref indexMapX);
+            pool.Return(ref indexMapY);
+            pool.Return(ref indexMapZ);
             pool.Return(ref merged);
 
         }
