@@ -1128,6 +1128,7 @@ namespace BepuPhysics
                 //Just copy directly from the first batch into the merged to initialize it.
                 //Note "+ 64" instead of "+ 63": the highest possibly claimed id is inclusive!
                 pool.Take((bodies.HandlePool.HighestPossiblyClaimedId + 64) / 64, out mergedConstrainedBodyHandles.Flags);
+#if false
                 // Timo: Set garbage to uninitialized buffer to trigger error situation.
                 {
                     for (int i = 0; i < mergedConstrainedBodyHandles.Flags.Length<<6; ++i)
@@ -1135,10 +1136,11 @@ namespace BepuPhysics
                         mergedConstrainedBodyHandles.SetUnsafely(i);
                     }
                 }
+#endif
                 var copyLength = Math.Min(mergedConstrainedBodyHandles.Flags.Length, batchReferencedHandles[0].Flags.Length);
                 batchReferencedHandles[0].Flags.CopyTo(0, mergedConstrainedBodyHandles.Flags, 0, copyLength);
                 // This is Timo's workaround:
-                // mergedConstrainedBodyHandles.Flags.Clear(copyLength, mergedConstrainedBodyHandles.Flags.Length - copyLength);
+                mergedConstrainedBodyHandles.Flags.Clear(copyLength, mergedConstrainedBodyHandles.Flags.Length - copyLength);
                 batchReferencedHandles[0].Flags.Clear(copyLength, batchReferencedHandles[0].Flags.Length - copyLength);
 
 
