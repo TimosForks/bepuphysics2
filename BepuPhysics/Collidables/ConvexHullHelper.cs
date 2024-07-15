@@ -408,7 +408,8 @@ namespace BepuPhysics.Collidables
             var previousEndIndex = initialIndex;
             for (int i = 0; i < facePoints.Count; ++i)
             {
-                var nextIndex = FindNextIndexForFaceHull(facePoints[previousEndIndex], previousEdgeDirection, planeEpsilon, ref facePoints);
+                var nextIndex = FindNextIndexForFaceHull(facePoints[previousEndIndex], previousEdgeDirection,
+                    planeEpsilon, ref facePoints);
                 //This can return -1 in the event of a completely degenerate face.
                 if (nextIndex == -1 || reducedIndices.Contains(faceVertexIndices[nextIndex]))
                 {
@@ -430,7 +431,10 @@ namespace BepuPhysics.Collidables
                     break;
                 }
                 reducedIndices.AllocateUnsafely() = faceVertexIndices[nextIndex];
-                previousEdgeDirection = Vector2.Normalize(facePoints[nextIndex] - facePoints[previousEndIndex]);
+                {
+                    var v1 = facePoints[nextIndex] - facePoints[previousEndIndex]; 
+                    previousEdgeDirection = v1 / Single.Sqrt(Vector2.Dot(v1, v1));
+                }
                 previousEndIndex = nextIndex;
             }
 
