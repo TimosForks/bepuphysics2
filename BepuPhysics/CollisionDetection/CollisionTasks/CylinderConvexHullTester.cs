@@ -29,10 +29,10 @@ namespace BepuPhysics.CollisionDetection.CollisionTasks
             //||linePosition + lineDirection * t|| = radius
             //dot(linePosition + lineDirection * t, linePosition + lineDirection * t) = radius * radius
             //dot(linePosition, linePosition) - radius * radius + t * 2 * dot(linePosition, lineDirection) + t^2 * dot(lineDirection, lineDirection) = 0
-            var a = Vector2.Dot(lineDirection, lineDirection);
+            var a = BepuPhysics.Helpers.V2Dot(lineDirection, lineDirection);
             var inverseA = 1f / a;
-            var b = Vector2.Dot(linePosition, lineDirection);
-            var c = Vector2.Dot(linePosition, linePosition);
+            var b = BepuPhysics.Helpers.V2Dot(linePosition, lineDirection);
+            var c = BepuPhysics.Helpers.V2Dot(linePosition, linePosition);
             var radiusSquared = radius * radius;
             c -= radiusSquared;
             var d = b * b - a * c;

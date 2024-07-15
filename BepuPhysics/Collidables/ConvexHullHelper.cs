@@ -254,8 +254,8 @@ namespace BepuPhysics.Collidables
                 var toCandidate = candidate - start;
                 //If x is negative, that means some numerical issue has resulted in a point beyond the bounding plane that generated this face request.
                 //We'll treat it as if it's on the plane. (The reason we bother with this clamp is the sign assumption built into our angle comparison, detailed above.)
-                var x = float.Max(0, Vector2.Dot(toCandidate, basisX));
-                var y = Vector2.Dot(toCandidate, basisY);
+                var x = float.Max(0, BepuPhysics.Helpers.V2Dot(toCandidate, basisX));
+                var y = BepuPhysics.Helpers.V2Dot(toCandidate, basisY);
 
                 //Note that any slot that would have been coplanar with the generating face *and* behind the edge (that is, a vertex almost certainly associated with the generating face) is ignored.
                 //Without this condition, it's possible for numerical cycles to occur where a face finds itself over and over again.
@@ -294,10 +294,10 @@ namespace BepuPhysics.Collidables
             {
                 var candidate = facePoints[i];
                 var toCandidate = candidate - start;
-                var alongNormal = Vector2.Dot(toCandidate, faceNormal);
+                var alongNormal = BepuPhysics.Helpers.V2Dot(toCandidate, faceNormal);
                 if (alongNormal > -planeEpsilon)
                 {
-                    var alongEdge = Vector2.Dot(toCandidate, edgeDirection);
+                    var alongEdge = BepuPhysics.Helpers.V2Dot(toCandidate, edgeDirection);
                     if (alongEdge > distance)
                     {
                         distance = alongEdge;
@@ -433,7 +433,7 @@ namespace BepuPhysics.Collidables
                 reducedIndices.AllocateUnsafely() = faceVertexIndices[nextIndex];
                 {
                     var v1 = facePoints[nextIndex] - facePoints[previousEndIndex]; 
-                    previousEdgeDirection = v1 / Single.Sqrt(Vector2.Dot(v1, v1));
+                    previousEdgeDirection = v1 / Single.Sqrt(BepuPhysics.Helpers.V2Dot(v1, v1));
                 }
                 previousEndIndex = nextIndex;
             }
